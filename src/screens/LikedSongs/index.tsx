@@ -1,3 +1,12 @@
+/**
+ * @file index.tsx
+ * @description Liked Songs screen. Displays all starred tracks with playback,
+ *   add-to-playlist, and remove-from-liked actions.
+ * @author DoodzProg
+ * @version 0.9.0
+ * @license MIT
+ */
+
 import React, {useState, useCallback, useRef} from 'react';
 import {
   View,
@@ -24,7 +33,7 @@ import HeartIcon from '../../components/icons/HeartIcon';
 import ShuffleIcon from '../../components/icons/ShuffleIcon';
 import AddToPlaylistSheet from '../../components/AddToPlaylistSheet';
 import Toast from '../../components/Toast';
-import {t} from '../../i18n/fr';
+import {useT} from '../../i18n';
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
@@ -80,6 +89,7 @@ function songToTrack(s: SubsonicSong): Track {
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function LikedSongsScreen() {
+  const t = useT();
   const navigation = useNavigation<any>();
   const isShuffled = usePlayerStore(s => s.isShuffled);
   const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
@@ -93,7 +103,7 @@ export default function LikedSongsScreen() {
   const [sheetVisible, setSheetVisible] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);

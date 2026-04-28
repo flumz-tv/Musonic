@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
-import Svg, {Path} from 'react-native-svg';
+import Svg, {Path, Circle} from 'react-native-svg';
 import {darkTheme} from '../../theme';
 import {search} from '../../api/endpoints/search';
 import {getStreamUrl, getCoverArtUrl} from '../../api/client';
@@ -16,7 +16,8 @@ import ArtistCard from '../../components/ArtistCard';
 import CoverArt from '../../components/CoverArt';
 import AddToPlaylistSheet from '../../components/AddToPlaylistSheet';
 import Toast from '../../components/Toast';
-import {t} from '../../i18n/fr';
+import {useT} from '../../i18n';
+import {useSearchHistoryStore} from '../../store/searchHistoryStore';
 
 // ─── Icons ─────────────────────────────────────────────────────────────────
 
@@ -36,9 +37,19 @@ function ThreeDotsIcon({size = 20, color = '#b3b3b3'}) {
   );
 }
 
+function ClockIcon({size = 18, color = '#707070'}) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth={1.8} />
+      <Path d="M12 7v5l3 2" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
 // ─── Song Item Component ───────────────────────────────────────────────────
 
 function SongResultItem({song, onPress, onMore}: {song: SubsonicSong, onPress: () => void, onMore: () => void}) {
+  const t = useT();
   return (
     <TouchableOpacity style={styles.songItem} onPress={onPress} activeOpacity={0.7}>
       <CoverArt id={song.coverArt} size={48} borderRadius={4} />
@@ -53,21 +64,61 @@ function SongResultItem({song, onPress, onMore}: {song: SubsonicSong, onPress: (
   );
 }
 
+// ─── Search History Section ────────────────────────────────────────────────
+
+function SearchHistorySection({
+  history,
+  onSelect,
+  onClear,
+}: {
+  history: string[];
+  onSelect: (term: string) => void;
+  onClear: () => void;
+}) {
+  const t = useT();
+  if (history.length === 0) return null;
+  return (
+    <View style={styles.historySection}>
+      <View style={styles.historyHeader}>
+        <Text style={styles.historySectionTitle}>{t.search.history.title}</Text>
+        <TouchableOpacity
+          onPress={onClear}
+          hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+          <Text style={styles.historyClearText}>{t.search.history.clear}</Text>
+        </TouchableOpacity>
+      </View>
+      {history.map(term => (
+        <TouchableOpacity
+          key={term}
+          style={styles.historyItem}
+          onPress={() => onSelect(term)}
+          activeOpacity={0.6}>
+          <ClockIcon />
+          <Text style={styles.historyItemText} numberOfLines={1}>{term}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export default function SearchActive() {
+  const t = useT();
   const navigation = useNavigation<any>();
   const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SubsonicSearchResult | null>(null);
 
+  const {history, addTerm, clearHistory} = useSearchHistoryStore();
+
   const [sheetTrackId, setSheetTrackId] = useState<string | undefined>();
   const [sheetTrackTitle, setSheetTrackTitle] = useState<string | undefined>();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showAllArtists, setShowAllArtists] = useState(false);
   const [showAllAlbums, setShowAllAlbums] = useState(false);
 
@@ -86,6 +137,17 @@ export default function SearchActive() {
     setSheetTrackTitle(song.title);
     setSheetVisible(true);
   }, []);
+
+  const handleSubmit = useCallback(() => {
+    const q = query.trim();
+    if (q) addTerm(q);
+  }, [query, addTerm]);
+
+  const handleSelectHistory = useCallback((term: string) => {
+    addTerm(term);
+    setQuery(term);
+    inputRef.current?.blur();
+  }, [addTerm]);
 
   useEffect(() => {
     const timeout = setTimeout(() => inputRef.current?.focus(), 100);
@@ -131,10 +193,12 @@ export default function SearchActive() {
     playTrack(track);
   };
 
+  const showHistory = !query.trim() && history.length > 0;
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor="#121212" />
-      
+
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <BackIcon />
@@ -147,6 +211,7 @@ export default function SearchActive() {
             placeholderTextColor="#888"
             value={query}
             onChangeText={setQuery}
+            onSubmitEditing={handleSubmit}
             autoCorrect={false}
             autoCapitalize="none"
             selectionColor={darkTheme.accent}
@@ -156,15 +221,27 @@ export default function SearchActive() {
       </View>
 
       <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+
+        {/* History — shown when query is empty */}
+        {showHistory && (
+          <SearchHistorySection
+            history={history}
+            onSelect={handleSelectHistory}
+            onClear={clearHistory}
+          />
+        )}
+
+        {/* Loading spinner */}
         {loading && (
           <View style={styles.center}>
             <ActivityIndicator size="large" color={darkTheme.accent} />
           </View>
         )}
 
+        {/* Results */}
         {!loading && results && (
           <View style={styles.resultsContainer}>
-            
+
             {/* Songs */}
             {results.songs && results.songs.length > 0 && (
               <View style={styles.section}>
@@ -196,7 +273,7 @@ export default function SearchActive() {
                       name={item.name}
                       coverArt={item.coverArt}
                       imageUrl={item.artistImageUrl}
-                      onPress={() => navigation.push('ArtistDetail', { artistId: item.id })}
+                      onPress={() => navigation.push('ArtistDetail', {artistId: item.id})}
                     />
                   )}
                   ListFooterComponent={
@@ -226,7 +303,7 @@ export default function SearchActive() {
                       name={item.name}
                       artist={item.artist}
                       coverArt={item.coverArt}
-                      onPress={() => navigation.push('AlbumDetail', { albumId: item.id })}
+                      onPress={() => navigation.push('AlbumDetail', {albumId: item.id})}
                     />
                   )}
                   ListFooterComponent={
@@ -242,9 +319,10 @@ export default function SearchActive() {
           </View>
         )}
 
+        {/* No results */}
         {!loading && results && !results.songs?.length && !results.artists?.length && !results.albums?.length && query.length > 0 && (
           <View style={styles.center}>
-            <Text style={{color: '#b3b3b3', fontSize: 16, fontWeight: '500'}}>{t.search.noResults(query)}</Text>
+            <Text style={styles.noResultsText}>{t.search.noResults(query)}</Text>
           </View>
         )}
 
@@ -272,6 +350,7 @@ const styles = StyleSheet.create({
   input: {flex: 1, color: '#fff', fontSize: 14, fontWeight: '500', paddingHorizontal: 12, height: '100%'},
   content: {flex: 1},
   center: {marginTop: 80, alignItems: 'center'},
+  noResultsText: {color: '#b3b3b3', fontSize: 16, fontWeight: '500'},
   resultsContainer: {paddingTop: 8},
   section: {marginBottom: 24},
   sectionTitle: {fontSize: 18, fontWeight: '700', color: '#fff', marginLeft: 16, marginBottom: 16},
@@ -314,5 +393,40 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '700',
+  },
+  // History
+  historySection: {
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 4,
+  },
+  historySectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  historyClearText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#b3b3b3',
+  },
+  historyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    gap: 14,
+  },
+  historyItemText: {
+    flex: 1,
+    color: '#e0e0e0',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

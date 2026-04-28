@@ -1,6 +1,8 @@
 import {create} from 'zustand';
 import TrackPlayer, {RepeatMode, State} from 'react-native-track-player';
 import {star, unstar} from '../api/endpoints/library';
+import {SubsonicError} from '../api/client';
+import {getT} from '../i18n';
 
 export type Track = {
   id: string;
@@ -56,9 +58,11 @@ type PlayerState = {
   openFullScreen: () => void;
   closeFullScreen: () => void;
   pendingLikeRetries: Set<string>;
+  pendingLikeToast: string | null;
   addPendingLikeRetry: (id: string) => void;
   removePendingLikeRetry: (id: string) => void;
   revertLikeOverride: (id: string) => void;
+  setPendingLikeToast: (msg: string | null) => void;
   toggleLike: (trackId: string) => Promise<boolean>;
   setLikedSongs: (ids: string[]) => void;
   setPlaylistSong: (id: string, inPlaylist: boolean) => void;
@@ -81,6 +85,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   likedSongIds: new Set<string>(),
   localLikeOverrides: {} as Record<string, boolean>,
   pendingLikeRetries: new Set<string>(),
+  pendingLikeToast: null,
   playlistSongIds: new Set<string>(),
   currentPlaylistId: null,
   currentPlaylistName: null,
@@ -145,6 +150,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       return {localLikeOverrides: next};
     }),
 
+  setPendingLikeToast: msg => set({pendingLikeToast: msg}),
+
   toggleLike: (trackId: string): Promise<boolean> => {
     const {likedSongIds, localLikeOverrides} = get();
     const currentLiked = localLikeOverrides[trackId] ?? likedSongIds.has(trackId);
@@ -152,9 +159,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set({localLikeOverrides: {...localLikeOverrides, [trackId]: newLiked}});
     return (newLiked ? star : unstar)(trackId)
       .then(() => true as boolean)
-      .catch(() => {
-        // Keep optimistic override — retry will fire when track plays
-        set(s => ({pendingLikeRetries: new Set([...s.pendingLikeRetries, trackId])}));
+      .catch((err: unknown) => {
+        if (err instanceof SubsonicError && err.isPermanent) {
+          // Permanent server-side error — revert immediately, never retry
+          set(s => {
+            const next = {...s.localLikeOverrides};
+            delete next[trackId];
+            return {localLikeOverrides: next, pendingLikeToast: getT().likes.unavailableTrack};
+          });
+        } else {
+          // Transient error — keep optimistic override, retry when track plays
+          set(s => ({pendingLikeRetries: new Set([...s.pendingLikeRetries, trackId])}));
+        }
         return false as boolean;
       });
   },

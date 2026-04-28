@@ -2,20 +2,24 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {useActiveTrack, usePlaybackState, State} from 'react-native-track-player';
 import {usePlayerStore} from '../store/playerStore';
 import {star, unstar} from '../api/endpoints/library';
+import {SubsonicError} from '../api/client';
 import Toast from './Toast';
-import {t} from '../i18n/fr';
+import {useT} from '../i18n';
 
 export default function LikeRetryManager() {
+  const t = useT();
   const currentTrack = useActiveTrack();
   const {state} = usePlaybackState();
   const pendingLikeRetries = usePlayerStore(s => s.pendingLikeRetries);
   const localLikeOverrides = usePlayerStore(s => s.localLikeOverrides);
   const removePendingLikeRetry = usePlayerStore(s => s.removePendingLikeRetry);
   const revertLikeOverride = usePlayerStore(s => s.revertLikeOverride);
+  const pendingLikeToast = usePlayerStore(s => s.pendingLikeToast);
+  const setPendingLikeToast = usePlayerStore(s => s.setPendingLikeToast);
 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -23,6 +27,14 @@ export default function LikeRetryManager() {
     setToastVisible(true);
     toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
   }, []);
+
+  // Show immediate toasts for permanent errors (set by toggleLike in playerStore)
+  useEffect(() => {
+    if (!pendingLikeToast) return;
+    showToast(pendingLikeToast);
+    setPendingLikeToast(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingLikeToast]);
 
   useEffect(() => {
     if (state !== State.Playing) return;
@@ -37,9 +49,10 @@ export default function LikeRetryManager() {
       .then(() => {
         showToast(newLiked ? t.likes.addedToLiked : t.likes.removedFromLiked);
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         revertLikeOverride(trackId);
-        showToast(t.likes.indexError);
+        const isPermanent = err instanceof SubsonicError && err.isPermanent;
+        showToast(isPermanent ? t.likes.unavailableTrack : t.likes.indexError);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, currentTrack?.id, pendingLikeRetries]);

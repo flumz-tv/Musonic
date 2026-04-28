@@ -3,9 +3,28 @@ import qs from 'qs';
 import type {Server} from '../store/settingsStore';
 import {useNetworkStore} from '../store/networkStore';
 
+const PERMANENT_ERROR_PATTERNS = [
+  'ext-deezer',
+  'media file not found',
+  'local track not available',
+];
+
+export class SubsonicError extends Error {
+  isPermanent: boolean;
+  constructor(message: string) {
+    super(message);
+    this.name = 'SubsonicError';
+    this.isPermanent = PERMANENT_ERROR_PATTERNS.some(p =>
+      message.toLowerCase().includes(p.toLowerCase()),
+    );
+  }
+}
+
 axios.interceptors.response.use(
   res => {
-    useNetworkStore.getState().setOffline(false);
+    const store = useNetworkStore.getState();
+    store.setOffline(false);
+    store.setServerReachable(true);
     return res;
   },
   err => {
@@ -66,7 +85,7 @@ export async function subsonicGet<T>(
 
   const body = res.data['subsonic-response'];
   if (body.status !== 'ok') {
-    throw new Error(body.error?.message ?? 'Subsonic error');
+    throw new SubsonicError(body.error?.message ?? 'Subsonic error');
   }
   return body as T;
 }

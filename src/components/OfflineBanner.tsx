@@ -3,7 +3,9 @@ import {Animated, StyleSheet, Text} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Path} from 'react-native-svg';
 import {useNetworkStore} from '../store/networkStore';
-import {t} from '../i18n/fr';
+import {useT} from '../i18n';
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
 
 function WifiOffIcon() {
   return (
@@ -19,19 +21,56 @@ function WifiOffIcon() {
   );
 }
 
+function ServerOffIcon() {
+  return (
+    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M2 3h20v6H2zM2 15h20v6H2z"
+        stroke="#fff"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M6 7h.01M6 19h.01"
+        stroke="#fff"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M2 2l20 20"
+        stroke="#fff"
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+// ─── Banner ───────────────────────────────────────────────────────────────────
+
 export default function OfflineBanner() {
+  const t = useT();
   const isOffline = useNetworkStore(s => s.isOffline);
+  const serverReachable = useNetworkStore(s => s.serverReachable);
   const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current;
+
+  const showBanner = isOffline || !serverReachable;
   const BANNER_H = insets.top + 44;
 
   useEffect(() => {
     Animated.timing(anim, {
-      toValue: isOffline ? 1 : 0,
+      toValue: showBanner ? 1 : 0,
       duration: 280,
       useNativeDriver: true,
     }).start();
-  }, [isOffline, anim]);
+  }, [showBanner, anim]);
+
+  const bannerBg = isOffline ? '#C0392B' : '#C0690B';
+  const icon = isOffline ? <WifiOffIcon /> : <ServerOffIcon />;
+  const message = isOffline ? t.offline.noInternet : t.offline.serverUnreachable;
 
   return (
     <Animated.View
@@ -41,6 +80,7 @@ export default function OfflineBanner() {
         {
           height: BANNER_H,
           paddingTop: insets.top,
+          backgroundColor: bannerBg,
           opacity: anim,
           transform: [
             {
@@ -52,8 +92,8 @@ export default function OfflineBanner() {
           ],
         },
       ]}>
-      <WifiOffIcon />
-      <Text style={styles.text}>{t.offline.noInternet}</Text>
+      {icon}
+      <Text style={styles.text}>{message}</Text>
     </Animated.View>
   );
 }
@@ -65,7 +105,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 9999,
-    backgroundColor: '#C0392B',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

@@ -2,6 +2,11 @@
 // Swap this import for another locale file to add a new language.
 export const t = {
 
+  // ─── Common ────────────────────────────────────────────────────────────────
+  common: {
+    retry: 'Réessayer',
+  },
+
   // ─── Server Setup ──────────────────────────────────────────────────────────
   serverSetup: {
     appName: 'Musonic',
@@ -50,6 +55,7 @@ export const t = {
     likedSongs: 'Titres likés',
     unknownTitle: 'Titre inconnu',
     unknownArtist: 'Artiste inconnu',
+    loadError: 'Impossible de charger la page d\'accueil',
     filters: {
       all: 'Tout',
       recent: 'Récent',
@@ -76,6 +82,10 @@ export const t = {
       songs: 'Titres',
       artists: 'Artistes',
       albums: 'Albums',
+    },
+    history: {
+      title: 'Recherches récentes',
+      clear: 'Effacer',
     },
   },
 
@@ -180,6 +190,7 @@ export const t = {
     queuedTracks: (n: number) => `${n} titres ajoutés à la file d'attente`,
     queueError: "Erreur lors de l'ajout à la file d'attente",
     trackCount: (n: number) => `${n} titre${n !== 1 ? 's' : ''}`,
+    unavailableTrack: 'Titre non disponible localement',
   },
 
   // ─── Create Playlist Modal ─────────────────────────────────────────────────
@@ -209,16 +220,21 @@ export const t = {
     addedToLiked: 'Ajouté aux titres likés',
     removedFromLiked: 'Supprimé des titres likés',
     indexError: "Impossible d'ajouter : titre non indexé sur le serveur",
+    unavailableTrack: 'Titre non disponible localement',
   },
 
   // ─── Offline Banner ────────────────────────────────────────────────────────
   offline: {
     noInternet: 'Pas de connexion internet',
+    serverUnreachable: 'Serveur injoignable',
   },
 
   // ─── Settings ──────────────────────────────────────────────────────────────
   settings: {
     title: 'Paramètres',
+    language: {
+      sectionTitle: 'Langue',
+    },
     sections: {
       player: 'Lecteur Musonic',
       transitions: 'Transitions entre les titres',

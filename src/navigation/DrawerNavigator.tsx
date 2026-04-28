@@ -1,4 +1,5 @@
 import React from 'react';
+import {StyleSheet} from 'react-native';
 import {createDrawerNavigator} from '@react-navigation/drawer';
 import Animated, {
   useAnimatedStyle,
@@ -24,11 +25,13 @@ function ScaledMain() {
   });
 
   return (
-    <Animated.View style={[{flex: 1}, animStyle]}>
+    <Animated.View style={[styles.fill, animStyle]}>
       <TabNavigator />
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({fill: {flex: 1}});
 
 export default function DrawerNavigator() {
   return (

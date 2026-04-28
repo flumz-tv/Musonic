@@ -39,10 +39,13 @@ function hslToHex(h: number, s: number, l: number): string {
 export function colorFromId(id: string): string {
   let hash = 5381;
   for (let i = 0; i < id.length; i++) {
+    // eslint-disable-next-line no-bitwise
     hash = ((hash << 5) + hash + id.charCodeAt(i)) | 0;
   }
   const hue = Math.abs(hash % 360);
+  // eslint-disable-next-line no-bitwise
   const sat = 55 + Math.abs((hash >> 8) % 25);  // 55–80 %
+  // eslint-disable-next-line no-bitwise
   const lit = 22 + Math.abs((hash >> 16) % 14); // 22–36 % (dark enough for white text)
   return hslToHex(hue, sat, lit);
 }

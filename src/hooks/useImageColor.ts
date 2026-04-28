@@ -1,12 +1,14 @@
 import {useEffect} from 'react';
 import ImageColors from 'react-native-image-colors';
+import {useActiveTrack} from 'react-native-track-player';
 import {getCoverArtUrl} from '../api/client';
 import {usePlayerStore} from '../store/playerStore';
 import {colorFromId} from '../utils/colorUtils';
 
 export function useImageColor() {
-  const coverArt = usePlayerStore(s => s.currentTrack?.coverArt);
-  const trackId  = usePlayerStore(s => s.currentTrack?.id);
+  const activeTrack = useActiveTrack();
+  const coverArt = activeTrack?.coverArt ? String(activeTrack.coverArt) : undefined;
+  const trackId  = activeTrack?.id ? String(activeTrack.id) : undefined;
   const setDominantColor = usePlayerStore(s => s.setDominantColor);
 
   useEffect(() => {

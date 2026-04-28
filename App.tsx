@@ -1,24 +1,34 @@
+/**
+ * @file App.tsx
+ * @description Root application component. Bootstraps the navigation container,
+ *   global providers (SafeArea, GestureHandler), the audio player setup, and
+ *   app-wide overlays (OfflineBanner, LikeRetryManager).
+ * @author DoodzProg
+ * @version 0.9.0
+ * @license MIT
+ */
+
 import React from 'react';
-import { StatusBar, View } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import {StatusBar, StyleSheet, View} from 'react-native';
+import {NavigationContainer} from '@react-navigation/native';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
-import { darkTheme } from './src/theme';
-import { useSetupPlayer } from './src/hooks/useSetupPlayer';
+import {darkTheme} from './src/theme';
+import {useSetupPlayer} from './src/hooks/useSetupPlayer';
 import OfflineBanner from './src/components/OfflineBanner';
 import LikeRetryManager from './src/components/LikeRetryManager';
 
 export default function App() {
   useSetupPlayer();
   return (
-    <GestureHandlerRootView style={{flex: 1}}>
+    <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <StatusBar
           barStyle="light-content"
           backgroundColor={darkTheme.background}
         />
-        <View style={{flex: 1}}>
+        <View style={styles.root}>
           <NavigationContainer>
             <RootNavigator />
           </NavigationContainer>
@@ -29,3 +39,7 @@ export default function App() {
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {flex: 1},
+});

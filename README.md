@@ -94,6 +94,38 @@ src/
 
 ---
 
+## OctoFiesta / Navidrome Proxy Compatibility
+
+Musonic is **100% compatible with Navidrome proxies** such as [OctoFiesta](https://github.com/your-username/octofiesta) that expose a Subsonic-compatible API on top of Deezer.
+
+### Why Musonic handles ext-deezer IDs correctly
+
+Some Navidrome proxies (like OctoFiesta) enrich track metadata with `ext-deezer:` prefixed IDs, allowing on-demand streaming of Deezer tracks through the Subsonic API.
+
+Several Subsonic clients (e.g. Symfonium) treat these IDs as opaque strings and fail when trying to look up cover art or stream URLs — resulting in broken artwork or silent failures.
+
+**Musonic handles this transparently:**
+
+- `getStreamUrl(id)` and `getCoverArtUrl(id)` pass the raw ID to the server — no client-side ID mangling
+- Cover art falls back asynchronously to the **Deezer public API** (`api.deezer.com`) when the server returns no image for an `ext-deezer:` ID
+- Artist images are fetched from Deezer's artist search endpoint as a first-class fallback (see `ArtistDetail` screen)
+
+This means tracks sourced from Deezer via OctoFiesta display with full artwork on every screen — album detail, mini player, full-screen player, and lock screen — without any special configuration.
+
+### Setup with OctoFiesta
+
+Point Musonic at your OctoFiesta instance the same way as a standard Navidrome server:
+
+```
+Server URL : https://your-octofiesta-domain.tld
+Username   : your_navidrome_username
+Password   : your_navidrome_password
+```
+
+No extra configuration required.
+
+---
+
 ## License
 
 This project is licensed under the [CC BY-NC 4.0](LICENSE) license.  

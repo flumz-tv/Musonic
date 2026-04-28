@@ -1,3 +1,13 @@
+/**
+ * @file index.tsx
+ * @description Server Setup screen. First-run onboarding: collects server URL,
+ *   username and password, validates credentials against the Subsonic API, and
+ *   persists the server configuration via settingsStore.
+ * @author DoodzProg
+ * @version 0.9.0
+ * @license MIT
+ */
+
 import React, {useState} from 'react';
 import {
   View,
@@ -15,30 +25,32 @@ import {darkTheme} from '../../theme';
 import {pingServer} from '../../api/client';
 import {useSettingsStore} from '../../store/settingsStore';
 import type {Server} from '../../store/settingsStore';
-import {t} from '../../i18n/fr';
+import {useT, getT} from '../../i18n';
 
 function friendlyError(e: any): string {
+  const d = getT();
   const status = e?.response?.status;
   if (status === 401 || status === 403) {
-    return t.serverSetup.errors.wrongCredentials;
+    return d.serverSetup.errors.wrongCredentials;
   }
   if (status >= 400 && status < 500) {
-    return t.serverSetup.errors.clientError(status);
+    return d.serverSetup.errors.clientError(status);
   }
   if (status >= 500) {
-    return t.serverSetup.errors.serverError(status);
+    return d.serverSetup.errors.serverError(status);
   }
   const code = e?.code;
   if (code === 'ECONNABORTED') {
-    return t.serverSetup.errors.timeout;
+    return d.serverSetup.errors.timeout;
   }
   if (code === 'ERR_NETWORK' || e?.message?.toLowerCase().includes('network')) {
-    return t.serverSetup.errors.unreachable;
+    return d.serverSetup.errors.unreachable;
   }
-  return e?.message ?? t.serverSetup.errors.generic;
+  return e?.message ?? d.serverSetup.errors.generic;
 }
 
 export default function ServerSetupScreen() {
+  const t = useT();
   const [name, setName] = useState('Mon serveur');
   const [url, setUrl] = useState('https://');
   const [username, setUsername] = useState('');

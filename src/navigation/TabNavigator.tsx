@@ -2,7 +2,7 @@ import React from 'react';
 import {StyleSheet, View} from 'react-native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import LinearGradient from 'react-native-linear-gradient';
-import {t} from '../i18n/fr';
+import {useT} from '../i18n';
 import HomeScreen from '../screens/Home';
 import SearchStack from './SearchStack';
 import LibraryStack from './LibraryStack';
@@ -12,6 +12,8 @@ import LibraryIcon from '../components/icons/LibraryIcon';
 import MiniPlayer from '../components/MiniPlayer';
 import FullScreenPlayer from '../components/FullScreenPlayer';
 import AudioPlayer from '../components/AudioPlayer';
+import OfflineBanner from '../components/OfflineBanner';
+import ConnectivityMonitor from '../components/ConnectivityMonitor';
 import {useImageColor} from '../hooks/useImageColor';
 
 const Tab = createBottomTabNavigator();
@@ -34,10 +36,11 @@ function LibraryTabIcon({focused}: TabIconProps) {
 }
 
 export default function TabNavigator() {
+  const t = useT();
   useImageColor();
 
   return (
-    <View style={{flex: 1}}>
+    <View style={styles.fill}>
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
@@ -95,18 +98,21 @@ export default function TabNavigator() {
       <View style={styles.bottomFade} pointerEvents="none">
         <LinearGradient
           colors={['transparent', '#000000']}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         />
       </View>
 
+      <ConnectivityMonitor />
       <AudioPlayer />
       <MiniPlayer />
       <FullScreenPlayer />
+      <OfflineBanner />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  fill: {flex: 1},
   bottomFade: {
     position: 'absolute',
     bottom: TAB_H,

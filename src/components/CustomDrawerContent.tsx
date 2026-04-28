@@ -5,7 +5,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import Svg, {Line, Path, Circle} from 'react-native-svg';
 import {darkTheme} from '../theme';
 import {useSettingsStore} from '../store/settingsStore';
-import {t} from '../i18n/fr';
+import {useT} from '../i18n';
 
 function PrefsIcon() {
   return (
@@ -30,9 +30,12 @@ function LogoutIcon() {
   );
 }
 
-type Props = {onClose?: () => void};
+import type {DrawerContentComponentProps} from '@react-navigation/drawer';
+
+type Props = Partial<DrawerContentComponentProps> & {onClose?: () => void};
 
 export default function CustomDrawerContent({onClose}: Props) {
+  const t = useT();
   const navigation = useNavigation<any>();
   const {getActiveServer, disconnectServer} = useSettingsStore();
   const server = getActiveServer();

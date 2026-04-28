@@ -1,3 +1,13 @@
+/**
+ * @file index.tsx
+ * @description Library screen. Lists the user's playlists, starred albums, and
+ *   liked songs in list or grid view with sort options, pin support, pull-to-refresh,
+ *   and auto-recovery on connectivity restore.
+ * @author DoodzProg
+ * @version 0.9.0
+ * @license MIT
+ */
+
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
@@ -29,7 +39,8 @@ import type {LibraryStackParams} from '../../navigation/types';
 import PlaylistOptionsSheet from '../../components/PlaylistOptionsSheet';
 import Toast from '../../components/Toast';
 import HeartIcon from '../../components/icons/HeartIcon';
-import {t} from '../../i18n/fr';
+import {useT, getT} from '../../i18n';
+import {useNetworkStore} from '../../store/networkStore';
 
 const {width: SCREEN_W} = Dimensions.get('window');
 
@@ -47,19 +58,6 @@ type LibraryItem = {
   artist?: string;
 };
 
-const SORT_LABELS: Record<SortMode, string> = {
-  recent: t.library.sort.recent,
-  added: t.library.sort.added,
-  alpha: t.library.sort.alpha,
-  custom: t.library.sort.custom,
-};
-
-const SORT_OPTIONS: {key: SortMode; label: string}[] = [
-  {key: 'recent', label: t.library.sort.recent},
-  {key: 'added', label: t.library.sort.added},
-  {key: 'alpha', label: t.library.sort.alpha},
-  {key: 'custom', label: t.library.sort.custom},
-];
 
 const SHEET_CLOSE_OFFSET = 500;
 
@@ -198,16 +196,11 @@ function NowPlayingBars() {
 // ─── Liked Cover ──────────────────────────────────────────────────────────────
 
 function LikedCover({size, borderRadius = 6}: {size: number; borderRadius?: number}) {
+  const coverStyle = {width: size, height: size, borderRadius, alignItems: 'center' as const, justifyContent: 'center' as const};
   return (
     <LinearGradient
       colors={['#6B2FA0', '#1E3A8A']}
-      style={{
-        width: size,
-        height: size,
-        borderRadius,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
+      style={coverStyle}>
       <HeartIcon size={size * 0.45} color="#fff" filled />
     </LinearGradient>
   );
@@ -311,6 +304,13 @@ type SortSheetProps = {
 };
 
 function SortSheet({visible, current, onSelect, onClose}: SortSheetProps) {
+  const t = useT();
+  const SORT_OPTIONS: {key: SortMode; label: string}[] = [
+    {key: 'recent', label: t.library.sort.recent},
+    {key: 'added', label: t.library.sort.added},
+    {key: 'alpha', label: t.library.sort.alpha},
+    {key: 'custom', label: t.library.sort.custom},
+  ];
   const sheet = useBottomSheet(onClose);
 
   useEffect(() => {
@@ -378,14 +378,15 @@ type RowProps = {
 };
 
 function rowSubtitle(item: LibraryItem): string {
+  const d = getT();
   if (item.kind === 'liked') {
-    return t.library.likedTrackCount(item.songCount);
+    return d.library.likedTrackCount(item.songCount);
   }
   if (item.kind === 'album') {
     return `Album • ${item.artist ?? ''}`;
   }
   const dur = item.duration > 0 ? ` · ${formatDuration(item.duration)}` : '';
-  return `Playlist • ${t.likedSongs.trackCount(item.songCount)}${dur}`;
+  return `Playlist • ${d.likedSongs.trackCount(item.songCount)}${dur}`;
 }
 
 function PlaylistRow({
@@ -455,6 +456,7 @@ function PlaylistGridCard({
   onPress,
   onLongPress,
 }: GridCardProps) {
+  const t = useT();
   const imgSize = colWidth - 8;
   const gridSub =
     item.kind === 'album'
@@ -493,6 +495,15 @@ function PlaylistGridCard({
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function LibraryScreen() {
+  const t = useT();
+
+  const SORT_LABELS: Record<SortMode, string> = {
+    recent: t.library.sort.recent,
+    added: t.library.sort.added,
+    alpha: t.library.sort.alpha,
+    custom: t.library.sort.custom,
+  };
+
   const insets = useSafeAreaInsets();
 
   const navigation =
@@ -531,7 +542,7 @@ export default function LibraryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -567,7 +578,7 @@ export default function LibraryScreen() {
       setLikedSongs(starData.songs.map((s: any) => String(s.id)));
       setError(null);
     } catch {
-      setError(t.library.loadError);
+      setError(getT().library.loadError);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -578,6 +589,22 @@ export default function LibraryScreen() {
     fetchItems();
   }, [fetchItems, playlistVersion]);
 
+  // ─── Auto-recovery when connectivity is restored ──────────────────────────
+  const isOffline = useNetworkStore(s => s.isOffline);
+  const prevOfflineRef = useRef(isOffline);
+  const errorRef = useRef(error);
+  errorRef.current = error;
+
+  useEffect(() => {
+    const wasOffline = prevOfflineRef.current;
+    prevOfflineRef.current = isOffline;
+    if (wasOffline && !isOffline && errorRef.current !== null) {
+      setLoading(true);
+      setError(null);
+      fetchItems();
+    }
+  }, [isOffline, fetchItems]);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     bumpPlaylistVersion();
@@ -586,7 +613,7 @@ export default function LibraryScreen() {
   const likedItem = useMemo<LibraryItem>(
     () => ({
       id: 'liked',
-      name: t.likedSongs.title,
+      name: getT().likedSongs.title,
       songCount: likedCount,
       duration: 0,
       isLiked: true,
@@ -690,7 +717,7 @@ export default function LibraryScreen() {
         <View style={styles.fadeOverlay} pointerEvents="none">
           <LinearGradient
             colors={[darkTheme.background, 'transparent']}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
           />
         </View>
         {loading && (
@@ -701,6 +728,12 @@ export default function LibraryScreen() {
         {!!error && (
           <View style={styles.center}>
             <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() => { setLoading(true); setError(null); fetchItems(); }}
+              activeOpacity={0.7}>
+              <Text style={styles.retryText}>{t.common.retry}</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1012,6 +1045,20 @@ const styles = StyleSheet.create({
     color: '#E84040',
     fontSize: 14,
     textAlign: 'center',
+  },
+  retryBtn: {
+    marginTop: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#282828',
+    borderWidth: 1,
+    borderColor: '#444',
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   emptyText: {
     color: darkTheme.textSecondary,

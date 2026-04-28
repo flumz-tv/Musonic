@@ -1,3 +1,13 @@
+/**
+ * @file index.tsx
+ * @description Album detail screen. Shows cover art, track listing, artist info,
+ *   and playback controls for a specific album. Supports shuffle, star/unstar,
+ *   and animated parallax header.
+ * @author DoodzProg
+ * @version 0.9.0
+ * @license MIT
+ */
+
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
@@ -19,6 +29,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import {darkTheme} from '../../theme';
 import CoverArt from '../../components/CoverArt';
 import Toast from '../../components/Toast';
+import {useActiveTrack} from 'react-native-track-player';
 import {loadAndPlayAlbum, loadAndPlayTracks} from '../../services/playerActions';
 import {usePlayerStore} from '../../store/playerStore';
 import {colorFromId} from '../../utils/colorUtils';
@@ -26,7 +37,7 @@ import type {SubsonicSong} from '../../api/types';
 import type {LibraryStackParams} from '../../navigation/types';
 import type {Track} from '../../store/playerStore';
 import {subsonicGet, getCoverArtUrl, getStreamUrl} from '../../api/client';
-import {t} from '../../i18n/fr';
+import {useT, getT} from '../../i18n';
 
 const {width: SCREEN_W, height: SCREEN_H} = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 80, 260);
@@ -124,6 +135,7 @@ function AlbumHeader({
   isShuffled, isStarred, loadingAlbum, coverScale, coverTranslateY,
   onPlay, onShuffle, onToggleStar,
 }: any) {
+  const t = useT();
   return (
     <View>
       <View style={{height: topBarH + 16}} />
@@ -132,7 +144,7 @@ function AlbumHeader({
           {coverArtId ? (
             <CoverArt id={coverArtId} size={COVER_SIZE} borderRadius={8} />
           ) : (
-            <View style={{width: COVER_SIZE, height: COVER_SIZE, backgroundColor: '#333', borderRadius: 8}} />
+            <View style={styles.coverPlaceholder} />
           )}
         </Animated.View>
       </View>
@@ -141,7 +153,7 @@ function AlbumHeader({
         <Text style={styles.albumName} numberOfLines={2}>{albumName || '…'}</Text>
         <View style={styles.metaRow}>
           <View style={styles.artistAvatar}>
-            <Text style={{color: '#fff', fontSize: 10, fontWeight: '700'}}>
+            <Text style={styles.artistAvatarText}>
               {artistName ? artistName.charAt(0).toUpperCase() : '?'}
             </Text>
           </View>
@@ -190,9 +202,10 @@ export default function AlbumDetailScreen() {
   const [isStarred, setIsStarred] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const currentTrackId = usePlayerStore(s => s.currentTrack?.id);
+  const activeTrack = useActiveTrack();
+  const currentTrackId = activeTrack?.id ? String(activeTrack.id) : null;
   const isShuffled = usePlayerStore(s => s.isShuffled);
   const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
 
@@ -231,10 +244,10 @@ export default function AlbumDetailScreen() {
     try {
       if (next) {
         await subsonicGet('star.view', {albumId});
-        showToast(t.albumDetail.addedToLibrary);
+        showToast(getT().albumDetail.addedToLibrary);
       } else {
         await subsonicGet('unstar.view', {albumId});
-        showToast(t.albumDetail.removedFromLibrary);
+        showToast(getT().albumDetail.removedFromLibrary);
       }
     } catch {
       setIsStarred(!next);
@@ -256,10 +269,10 @@ export default function AlbumDetailScreen() {
     if (!songs.length) return;
     const tracks: Track[] = songs.map((s: any) => ({
       id: s.id,
-      title: s.title || t.home.unknownTitle,
-      artist: s.artist || t.artistDetail.unknownArtist,
+      title: s.title || getT().home.unknownTitle,
+      artist: s.artist || getT().artistDetail.unknownArtist,
       artistId: s.artistId,
-      album: s.album || albumName || t.albumDetail.unknownAlbum,
+      album: s.album || albumName || getT().albumDetail.unknownAlbum,
       duration: s.duration || 0,
       coverArt: s.coverArt || coverArtId || s.id,
       streamUrl: getStreamUrl(s.id),
@@ -322,6 +335,8 @@ export default function AlbumDetailScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+  coverPlaceholder: {width: COVER_SIZE, height: COVER_SIZE, backgroundColor: '#333', borderRadius: 8},
+  artistAvatarText: {color: '#fff', fontSize: 10, fontWeight: '700'},
   root: { flex: 1, backgroundColor: darkTheme.background },
   bgGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: SCREEN_H * 0.62 },
   topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20 },

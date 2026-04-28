@@ -106,6 +106,10 @@ export default function WaveformScrubber({trackId, duration, currentTime, onSeek
     ? (containerWidth - BAR_GAP * (BAR_COUNT - 1)) / BAR_COUNT
     : 4;
   const remaining = Math.max(0, duration - displayTime);
+  const progressClipStyle = useMemo(
+    () => [styles.progressClip, {width: progressWidth}],
+    [progressWidth],
+  );
 
   return (
     <View style={styles.container}>
@@ -123,15 +127,7 @@ export default function WaveformScrubber({trackId, duration, currentTime, onSeek
             />
 
             {/* Layer 2 — white active, cropped to progress via overflow:hidden */}
-            <View
-              style={{
-                position: 'absolute',
-                top: 0,
-                bottom: 0,
-                left: 0,
-                width: progressWidth,
-                overflow: 'hidden',
-              }}>
+            <View style={progressClipStyle}>
               <WaveSvg
                 peaks={peaks}
                 barWidth={barWidth}
@@ -169,6 +165,7 @@ export default function WaveformScrubber({trackId, duration, currentTime, onSeek
 
 const styles = StyleSheet.create({
   container: {marginTop: 8},
+  progressClip: {position: 'absolute', top: 0, bottom: 0, left: 0, overflow: 'hidden'},
   waveWrapper: {
     height: WAVE_H,
     position: 'relative',

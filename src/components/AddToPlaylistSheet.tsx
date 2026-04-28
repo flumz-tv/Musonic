@@ -16,13 +16,14 @@ import {
 import Svg, {Circle, Path} from 'react-native-svg';
 import CoverArt from './CoverArt';
 import {usePlayerStore} from '../store/playerStore';
-import {t} from '../i18n/fr';
+import {useT, getT} from '../i18n';
 import {
   getPlaylists,
   getPlaylist,
   updatePlaylist,
   createPlaylist,
 } from '../api/endpoints/playlists';
+import {SubsonicError} from '../api/client';
 import CreatePlaylistModal from './CreatePlaylistModal';
 import type {SubsonicPlaylist} from '../api/types';
 
@@ -93,6 +94,7 @@ function PlaylistRow({
   item: PlaylistItem;
   onToggle: (item: PlaylistItem) => void;
 }) {
+  const t = useT();
   return (
     <TouchableOpacity
       style={styles.row}
@@ -121,6 +123,7 @@ export default function AddToPlaylistSheet({
   trackTitle,
   onToast,
 }: Props) {
+  const t = useT();
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const [search, setSearch] = useState('');
@@ -217,7 +220,7 @@ export default function AddToPlaylistSheet({
               : p,
           ),
         );
-        onToast(t.addToPlaylist.removedFrom(item.name));
+        onToast(getT().addToPlaylist.removedFrom(item.name));
         try {
           if (item.trackIndex >= 0) {
             await updatePlaylist(item.id, undefined, undefined, [item.trackIndex]);
@@ -241,8 +244,11 @@ export default function AddToPlaylistSheet({
                 : p,
             ),
           );
-          const msg = e instanceof Error ? e.message : String(e);
-          console.warn('[AddToPlaylistSheet] remove error:', msg);
+          const isPermanent = e instanceof SubsonicError && e.isPermanent;
+          if (isPermanent) {
+            onToast(getT().addToPlaylist.unavailableTrack);
+          }
+          console.warn('[AddToPlaylistSheet] remove error:', e instanceof Error ? e.message : String(e));
         }
       } else {
         // Optimistic add — track will be appended at current songCount index
@@ -259,7 +265,7 @@ export default function AddToPlaylistSheet({
               : p,
           ),
         );
-        onToast(t.addToPlaylist.addedTo(item.name));
+        onToast(getT().addToPlaylist.addedTo(item.name));
         try {
           await updatePlaylist(item.id, undefined, [String(trackId)]);
           bumpPlaylistVersion();
@@ -278,8 +284,11 @@ export default function AddToPlaylistSheet({
                 : p,
             ),
           );
-          const msg = e instanceof Error ? e.message : String(e);
-          console.warn('[AddToPlaylistSheet] add error:', msg);
+          const isPermanent = e instanceof SubsonicError && e.isPermanent;
+          if (isPermanent) {
+            onToast(getT().addToPlaylist.unavailableTrack);
+          }
+          console.warn('[AddToPlaylistSheet] add error:', e instanceof Error ? e.message : String(e));
         }
       }
     },
@@ -294,7 +303,7 @@ export default function AddToPlaylistSheet({
       try {
         await createPlaylist(name, [String(trackId)]);
         setPlaylistSong(trackId, true);
-        onToast(t.addToPlaylist.addedTo(name));
+        onToast(getT().addToPlaylist.addedTo(name));
         bumpPlaylistVersion();
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -364,7 +373,7 @@ export default function AddToPlaylistSheet({
         <Animated.View
           style={[
             StyleSheet.absoluteFill,
-            {backgroundColor: '#000', opacity: overlayOpacity},
+            styles.overlay, {opacity: overlayOpacity},
           ]}
           pointerEvents="none"
         />
@@ -472,6 +481,7 @@ export default function AddToPlaylistSheet({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  overlay: {backgroundColor: '#000'},
   sheet: {
     position: 'absolute',
     bottom: 0,

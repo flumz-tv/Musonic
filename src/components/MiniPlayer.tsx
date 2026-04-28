@@ -11,7 +11,7 @@ import {usePlayerStore} from '../store/playerStore';
 import {skipNext, skipPrevForce} from '../services/playerActions';
 import {blendWithBlack} from '../utils/colorUtils';
 import {darkTheme} from '../theme';
-import {t} from '../i18n/fr';
+import {useT} from '../i18n';
 
 const TAB_BAR_HEIGHT = 60;
 
@@ -71,6 +71,7 @@ function PlusCircleOutline() {
 }
 
 export default function MiniPlayer() {
+  const t = useT();
   // RNTP native hooks — react directly to native engine
   const currentTrack = useActiveTrack();
   const {state} = usePlaybackState();
@@ -94,7 +95,7 @@ export default function MiniPlayer() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const coverSlide = useRef(new Animated.Value(0)).current;
 
   const showToast = useCallback((msg: string) => {
@@ -113,7 +114,7 @@ export default function MiniPlayer() {
       }
       // false = pending retry, LikeRetryManager handles the toast
     });
-  }, [trackId, localLikeOverrides, likedSongIds, toggleLike, showToast]);
+  }, [trackId, localLikeOverrides, likedSongIds, toggleLike, showToast, t]);
 
   const handleMiniSwipe = (direction: 'next' | 'prev') => {
     const exitX = direction === 'next' ? -52 : 52;

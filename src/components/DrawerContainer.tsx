@@ -121,7 +121,7 @@ export default function DrawerContainer({children}: Props) {
               <Animated.View
                 style={[
                   StyleSheet.absoluteFill,
-                  {backgroundColor: '#000', opacity: overlayOpacity},
+                  styles.overlay, {opacity: overlayOpacity},
                 ]}
               />
             </TouchableWithoutFeedback>
@@ -150,4 +150,5 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     zIndex: 1,
   },
+  overlay: {backgroundColor: '#000'},
 });

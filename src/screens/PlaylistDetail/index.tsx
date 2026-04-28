@@ -1,3 +1,13 @@
+/**
+ * @file index.tsx
+ * @description Playlist detail screen. Displays tracks in a playlist with
+ *   drag-and-drop reordering, inline search, edit mode, recommended track
+ *   suggestions, and full CRUD support (add, remove, rename).
+ * @author DoodzProg
+ * @version 0.9.0
+ * @license MIT
+ */
+
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
@@ -22,6 +32,7 @@ import CoverArt from '../../components/CoverArt';
 import {getPlaylist, replacePlaylist} from '../../api/endpoints/playlists';
 import {loadAndPlayPlaylist, loadAndPlayTracks} from '../../services/playerActions';
 import ShuffleIcon from '../../components/icons/ShuffleIcon';
+import {useActiveTrack, usePlaybackState, State} from 'react-native-track-player';
 import {usePlayerStore} from '../../store/playerStore';
 import {colorFromId} from '../../utils/colorUtils';
 import type {SubsonicSong} from '../../api/types';
@@ -33,7 +44,7 @@ import type {RenderItemParams} from 'react-native-draggable-flatlist';
 import SongOptionsSheet from '../../components/SongOptionsSheet';
 import PlaylistOptionsSheet from '../../components/PlaylistOptionsSheet';
 import Toast from '../../components/Toast';
-import {t} from '../../i18n/fr';
+import {useT, getT} from '../../i18n';
 
 const {width: SCREEN_W, height: SCREEN_H} = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 80, 260);
@@ -268,16 +279,11 @@ function DragHandleIcon({size = 24, color = '#777'}: {size?: number; color?: str
 // ─── Liked Cover ──────────────────────────────────────────────────────────────
 
 function LikedCover({size, radius = 8}: {size: number; radius?: number}) {
+  const coverStyle = {width: size, height: size, borderRadius: radius, alignItems: 'center' as const, justifyContent: 'center' as const};
   return (
     <LinearGradient
       colors={['#6B2FA0', '#1E3A8A']}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: radius,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
+      style={coverStyle}>
       <Svg width={size * 0.4} height={size * 0.4} viewBox="0 0 24 24">
         <Path
           d="M12 21 C12 21 3 14.5 3 8.5 C3 5.4 5.4 3 8.5 3 C10.1 3 11.5 3.8 12 5 C12.5 3.8 13.9 3 15.5 3 C18.6 3 21 5.4 21 8.5 C21 14.5 12 21 12 21 Z"
@@ -374,6 +380,7 @@ function PlaylistHeader({
   onMorePress,
   onStartEdit,
 }: HeaderProps) {
+  const t = useT();
   const showPause = isThisPlaylistActive && isGlobalPlaying;
 
   return (
@@ -470,11 +477,11 @@ function PlaylistHeader({
         </TouchableOpacity>
         <TouchableOpacity style={styles.pillBtn} activeOpacity={0.7}>
           <FadersIcon size={14} />
-          <Text style={[styles.pillText, {marginLeft: 5}]}>{t.playlistDetail.pills.mix}</Text>
+          <Text style={[styles.pillText, styles.pillTextIndent]}>{t.playlistDetail.pills.mix}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.pillBtn} activeOpacity={0.7} onPress={onStartEdit}>
           <PencilIcon size={14} />
-          <Text style={[styles.pillText, {marginLeft: 5}]}>{t.playlistDetail.pills.edit}</Text>
+          <Text style={[styles.pillText, styles.pillTextIndent]}>{t.playlistDetail.pills.edit}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -484,6 +491,7 @@ function PlaylistHeader({
 // ─── List Footer ──────────────────────────────────────────────────────────────
 
 function PlaylistFooter() {
+  const t = useT();
   return (
     <View style={styles.recoSection}>
       <Text style={styles.recoTitle}>{t.playlistDetail.recommendations.title}</Text>
@@ -524,6 +532,7 @@ function EditHeader({
   onCancel: () => void;
   onSave: () => void;
 }) {
+  const t = useT();
   return (
     <View style={[styles.editBar, {paddingTop: topInset}]}>
       <TouchableOpacity onPress={onCancel} style={styles.editBarSide} activeOpacity={0.7}>
@@ -532,7 +541,7 @@ function EditHeader({
       <Text style={styles.editBarTitle}>{t.playlistDetail.editHeader}</Text>
       <TouchableOpacity
         onPress={onSave}
-        style={[styles.editBarSide, {alignItems: 'flex-end'}]}
+        style={[styles.editBarSide, styles.editBarRight]}
         activeOpacity={0.7}
         disabled={isSaving}>
         {isSaving ? (
@@ -612,7 +621,7 @@ export default function PlaylistDetailScreen() {
   const [playlistOptionsVisible, setPlaylistOptionsVisible] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -621,9 +630,11 @@ export default function PlaylistDetailScreen() {
     toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
   }, []);
 
-  const currentTrackId = usePlayerStore(s => s.currentTrack?.id);
+  const activeTrack = useActiveTrack();
+  const currentTrackId = activeTrack?.id ? String(activeTrack.id) : undefined;
+  const playbackState = usePlaybackState();
+  const isGlobalPlaying = playbackState.state === State.Playing;
   const currentPlaylistId = usePlayerStore(s => s.currentPlaylistId);
-  const isGlobalPlaying = usePlayerStore(s => s.isPlaying);
   const isShuffled = usePlayerStore(s => s.isShuffled);
   const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
   const togglePlay = usePlayerStore(s => s.togglePlay);
@@ -692,8 +703,8 @@ export default function PlaylistDetailScreen() {
     if (!songs.length) return;
     const tracks: Track[] = songs.map((s: any) => ({
       id: s.id,
-      title: s.title || t.home.unknownTitle,
-      artist: s.artist || t.home.unknownArtist,
+      title: s.title || getT().home.unknownTitle,
+      artist: s.artist || getT().home.unknownArtist,
       album: s.album || 'Single',
       duration: s.duration || 0,
       coverArt: s.coverArt || s.id,
@@ -756,9 +767,9 @@ export default function PlaylistDetailScreen() {
       setSongs(fresh);
       setIsEditing(false);
       setEditSongs([]);
-      showToast(t.playlistDetail.savedToast);
+      showToast(getT().playlistDetail.savedToast);
     } catch {
-      showToast(t.playlistDetail.saveError);
+      showToast(getT().playlistDetail.saveError);
     } finally {
       setIsSaving(false);
     }
@@ -908,6 +919,8 @@ export default function PlaylistDetailScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  pillTextIndent: {marginLeft: 5},
+  editBarRight: {alignItems: 'flex-end'},
   root: {
     flex: 1,
     backgroundColor: darkTheme.background,

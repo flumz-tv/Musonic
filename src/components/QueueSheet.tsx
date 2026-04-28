@@ -18,7 +18,7 @@ import DraggableFlatList, {
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import Svg, {Circle, Path, Rect} from 'react-native-svg';
 import CoverArt from './CoverArt';
-import {t} from '../i18n/fr';
+import {useT} from '../i18n';
 import {useActiveTrack, usePlaybackState, State} from 'react-native-track-player';
 import {usePlayerStore, type Track} from '../store/playerStore';
 
@@ -230,6 +230,7 @@ interface Props {
 }
 
 export default function QueueSheet({visible, onClose, slideY}: Props) {
+  const t = useT();
   const currentTrack = useActiveTrack();
   const {state} = usePlaybackState();
   const isPlaying = state === State.Playing;
@@ -368,14 +369,14 @@ export default function QueueSheet({visible, onClose, slideY}: Props) {
           </View>
 
           {/* ── Draggable list ── */}
-          <GestureHandlerRootView style={{flex: 1}}>
+          <GestureHandlerRootView style={styles.fill}>
             <DraggableFlatList
               data={upcoming}
               keyExtractor={(item, idx) => `${item.id}-${idx}`}
               onDragEnd={({from, to}) => reorderQueue(from, to)}
               renderItem={renderItem}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{paddingBottom: 8}}
+              contentContainerStyle={styles.listContent}
             />
           </GestureHandlerRootView>
 
@@ -431,6 +432,8 @@ export default function QueueSheet({visible, onClose, slideY}: Props) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  fill: {flex: 1},
+  listContent: {paddingBottom: 8},
   backdrop: {
     backgroundColor: 'rgba(0,0,0,0.7)',
     zIndex: 200,

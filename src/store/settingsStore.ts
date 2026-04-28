@@ -3,6 +3,7 @@ import {persist, createJSONStorage} from 'zustand/middleware';
 import {mmkvStorage} from './storage';
 
 export type ColorScheme = 'dark' | 'light' | 'system';
+export type Locale = 'fr' | 'en';
 
 export type Server = {
   id: string;
@@ -26,6 +27,8 @@ type SettingsState = {
   setActiveServer: (id: string) => void;
   disconnectServer: () => void;
   getActiveServer: () => Server | null;
+  locale: Locale;
+  setLocale: (locale: Locale) => void;
   useWaveformScrubber: boolean;
   setUseWaveformScrubber: (use: boolean) => void;
   rotationLocked: boolean;
@@ -49,6 +52,8 @@ export const useSettingsStore = create<SettingsState>()(
         set(state => ({servers: state.servers.filter(s => s.id !== id)})),
       setActiveServer: id => set({activeServerId: id}),
       disconnectServer: () => set({activeServerId: null}),
+      locale: 'fr',
+      setLocale: locale => set({locale}),
       useWaveformScrubber: false,
       setUseWaveformScrubber: use => set({useWaveformScrubber: use}),
       rotationLocked: false,

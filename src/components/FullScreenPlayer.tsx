@@ -30,7 +30,7 @@ import WaveformScrubber from './WaveformScrubber';
 import QueueSheet from './QueueSheet';
 import AddToPlaylistSheet from './AddToPlaylistSheet';
 import Toast from './Toast';
-import {t} from '../i18n/fr';
+import {useT, getT} from '../i18n';
 
 const {width: SW, height: SH} = Dimensions.get('window');
 const COVER_SIZE = Math.min(SW - 48, SH * 0.4);
@@ -67,7 +67,7 @@ function DotsMenuIcon() {
 function ShuffleIcon({active}: {active: boolean}) {
   const col = active ? darkTheme.accent : 'rgba(255,255,255,0.7)';
   return (
-    <View style={{alignItems: 'center'}}>
+    <View style={styles.iconWrap}>
       <Svg width={22} height={22} viewBox="0 0 24 24">
         <Path 
           d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" 
@@ -100,8 +100,9 @@ function NextIcon({size = 32}: {size?: number}) {
 }
 
 function BigPlayIcon({size = 64}: {size?: number}) {
+  const circleStyle = {width: size, height: size, borderRadius: size / 2, backgroundColor: '#fff' as const, alignItems: 'center' as const, justifyContent: 'center' as const};
   return (
-    <View style={{width: size, height: size, borderRadius: size/2, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center'}}>
+    <View style={circleStyle}>
       <Svg width={size * 0.4} height={size * 0.4} viewBox="0 0 24 24" fill="#000">
         <Path d="M7.05 3.606l13.49 7.788a.7.7 0 0 1 0 1.212L7.05 20.394A.7.7 0 0 1 6 19.788V4.212a.7.7 0 0 1 1.05-.606z" />
       </Svg>
@@ -110,8 +111,9 @@ function BigPlayIcon({size = 64}: {size?: number}) {
 }
 
 function BigPauseIcon({size = 64}: {size?: number}) {
+  const circleStyle = {width: size, height: size, borderRadius: size / 2, backgroundColor: '#fff' as const, alignItems: 'center' as const, justifyContent: 'center' as const};
   return (
-    <View style={{width: size, height: size, borderRadius: size/2, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center'}}>
+    <View style={circleStyle}>
       <Svg width={size * 0.4} height={size * 0.4} viewBox="0 0 24 24" fill="#000">
         <Path d="M5.7 3a.7.7 0 0 0-.7.7v16.6a.7.7 0 0 0 .7.7h2.6a.7.7 0 0 0 .7-.7V3.7a.7.7 0 0 0-.7-.7H5.7zm10 0a.7.7 0 0 0-.7.7v16.6a.7.7 0 0 0 .7.7h2.6a.7.7 0 0 0 .7-.7V3.7a.7.7 0 0 0-.7-.7h-2.6z" />
       </Svg>
@@ -123,7 +125,7 @@ function RepeatIcon({mode}: {mode: RepeatMode}) {
   const active = mode !== 'none';
   const col = active ? darkTheme.accent : 'rgba(255,255,255,0.7)';
   return (
-    <View style={{alignItems: 'center'}}>
+    <View style={styles.iconWrap}>
       <Svg width={22} height={22} viewBox="0 0 24 24">
         <Path
           d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"
@@ -195,18 +197,18 @@ function QueueIcon() {
 
 function AmbientBackground({coverArtId}: {coverArtId?: string}) {
   if (!coverArtId) {
-    return <View style={[StyleSheet.absoluteFill, {backgroundColor: '#121212'}]} />;
+    return <View style={[StyleSheet.absoluteFill, styles.ambientBg]} />;
   }
   const imageUrl = getCoverArtUrl(coverArtId, 600);
   return (
-    <View style={[StyleSheet.absoluteFill, {backgroundColor: '#121212', overflow: 'hidden'}]}>
+    <View style={[StyleSheet.absoluteFill, styles.ambientBgClip]}>
       <Image
         source={{uri: imageUrl}}
-        style={[StyleSheet.absoluteFill, {transform: [{scale: 1.5}]}]}
+        style={[StyleSheet.absoluteFill, styles.ambientImg]}
         blurRadius={90}
       />
-      <View style={[StyleSheet.absoluteFill, {backgroundColor: 'rgba(0,0,0,0.55)'}]} />
-      <View style={[StyleSheet.absoluteFill, {backgroundColor: 'rgba(18,18,18,0.3)'}]} />
+      <View style={[StyleSheet.absoluteFill, styles.ambientOverlay1]} />
+      <View style={[StyleSheet.absoluteFill, styles.ambientOverlay2]} />
     </View>
   );
 }
@@ -214,6 +216,7 @@ function AmbientBackground({coverArtId}: {coverArtId?: string}) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function FullScreenPlayer() {
+  const t = useT();
   const navigation = useNavigation<any>();
   // RNTP native hooks — react directly to native engine
   const currentTrack = useActiveTrack();
@@ -263,7 +266,7 @@ export default function FullScreenPlayer() {
   const inPlaylist = fspTrackId ? playlistSongIds.has(fspTrackId) : false;
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -277,7 +280,7 @@ export default function FullScreenPlayer() {
     const wasLiked = localLikeOverrides[fspTrackId] ?? likedSongIds.has(fspTrackId);
     toggleLike(fspTrackId).then(success => {
       if (success) {
-        showToast(wasLiked ? t.likes.removedFromLiked : t.likes.addedToLiked);
+        showToast(wasLiked ? getT().likes.removedFromLiked : getT().likes.addedToLiked);
       }
       // false = pending retry, LikeRetryManager handles the toast
     });
@@ -287,7 +290,7 @@ export default function FullScreenPlayer() {
   useEffect(() => {
     if (!currentTrack?.id) return;
     TrackPlayer.getQueue().then(queue => {
-      const idx = queue.findIndex(t => String(t.id) === String(currentTrack.id));
+      const idx = queue.findIndex(qt => String(qt.id) === String(currentTrack.id));
       if (idx === -1) return;
       const prevT = idx > 0 ? queue[idx - 1] : undefined;
       const nextT = idx < queue.length - 1 ? queue[idx + 1] : undefined;
@@ -296,12 +299,12 @@ export default function FullScreenPlayer() {
         currId: currentTrack.coverArt ? String(currentTrack.coverArt) : undefined,
         nextId: nextT?.coverArt ? String(nextT.coverArt) : undefined,
       });
-      const coverUris: {uri: string; priority: typeof FastImage.priority.normal}[] = [];
-      for (const t of [prevT, nextT]) {
-        if (!t) continue;
-        if (t.coverArt) coverUris.push({uri: getCoverArtUrl(String(t.coverArt), 600), priority: FastImage.priority.high});
-        if (typeof t.artwork === 'string' && t.artwork) coverUris.push({uri: t.artwork, priority: FastImage.priority.high});
-        if (t.url) fetch(String(t.url), {headers: {Range: 'bytes=0-65535'}}).catch(() => {});
+      const coverUris: Array<{uri: string; priority: 'low' | 'normal' | 'high'}> = [];
+      for (const adj of [prevT, nextT]) {
+        if (!adj) continue;
+        if (adj.coverArt) coverUris.push({uri: getCoverArtUrl(String(adj.coverArt), 600), priority: FastImage.priority.high});
+        if (typeof adj.artwork === 'string' && adj.artwork) coverUris.push({uri: adj.artwork, priority: FastImage.priority.high});
+        if (adj.url) fetch(String(adj.url), {headers: {Range: 'bytes=0-65535'}}).catch(() => {});
       }
       if (coverUris.length > 0) FastImage.preload(coverUris);
     }).catch(() => {});
@@ -501,15 +504,7 @@ export default function FullScreenPlayer() {
           {/* Invisible full-width overlay to capture swipe gestures on cover area */}
           <View
             {...coverPan.panHandlers}
-            style={{
-              position: 'absolute',
-              top: 70,
-              left: 0,
-              right: 0,
-              height: COVER_SIZE + 60,
-              zIndex: 9999,
-              backgroundColor: 'rgba(0, 0, 0, 0.01)',
-            }}
+            style={styles.swipeOverlay}
           />
 
           {/* ── Track Info + Like ── */}
@@ -633,7 +628,7 @@ export default function FullScreenPlayer() {
               <TouchableOpacity hitSlop={HIT}>
                 <ShareIcon />
               </TouchableOpacity>
-              <TouchableOpacity hitSlop={HIT} style={{marginLeft: 24}} onPress={openQueue}>
+              <TouchableOpacity hitSlop={HIT} style={styles.queueBtn} onPress={openQueue}>
                 <QueueIcon />
               </TouchableOpacity>
             </View>
@@ -678,6 +673,22 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
   },
+  iconWrap: {alignItems: 'center'},
+  ambientBg: {backgroundColor: '#121212'},
+  ambientBgClip: {backgroundColor: '#121212', overflow: 'hidden'},
+  ambientImg: {transform: [{scale: 1.5}]},
+  ambientOverlay1: {backgroundColor: 'rgba(0,0,0,0.55)'},
+  ambientOverlay2: {backgroundColor: 'rgba(18,18,18,0.3)'},
+  swipeOverlay: {
+    position: 'absolute',
+    top: 70,
+    left: 0,
+    right: 0,
+    height: COVER_SIZE + 60,
+    zIndex: 9999,
+    backgroundColor: 'rgba(0,0,0,0.01)',
+  },
+  queueBtn: {marginLeft: 24},
 
   // Header
   header: {

@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import {t} from '../i18n/fr';
+import {useT} from '../i18n';
 
 type Props = {
   visible: boolean;
@@ -18,6 +18,7 @@ type Props = {
 };
 
 export default function CreatePlaylistModal({visible, onCancel, onCreate}: Props) {
+  const t = useT();
   const [name, setName] = useState('');
 
   const handleCreate = () => {

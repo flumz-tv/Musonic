@@ -1,3 +1,12 @@
+/**
+ * @file index.tsx
+ * @description Settings screen. Language picker, player style (classic / waveform),
+ *   crossfade duration, mono audio toggle, and screen rotation lock.
+ * @author DoodzProg
+ * @version 0.9.0
+ * @license MIT
+ */
+
 import React, {useState} from 'react';
 import {
   View,
@@ -13,7 +22,7 @@ import {useNavigation} from '@react-navigation/native';
 import Svg, {Path, Circle, Rect} from 'react-native-svg';
 import {useSettingsStore} from '../../store/settingsStore';
 import Slider from '@react-native-community/slider';
-import {t} from '../../i18n/fr';
+import {useT} from '../../i18n';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -64,8 +73,11 @@ export default function SettingsScreen() {
     setCrossfadeDuration,
     rotationLocked,
     setRotationLocked,
+    locale,
+    setLocale,
   } = useSettingsStore();
 
+  const t = useT();
   const [mono, setMono] = useState(false);
 
   const ACCENT = '#FF6B35';
@@ -82,6 +94,27 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+
+        {/* Language section */}
+        <Text style={styles.sectionTitle}>{t.settings.language.sectionTitle}</Text>
+        <View style={styles.languagePicker}>
+          <TouchableOpacity
+            style={[styles.langPill, locale === 'fr' && styles.langPillActive]}
+            onPress={() => setLocale('fr')}
+            activeOpacity={0.8}>
+            <Text style={[styles.langPillText, locale === 'fr' && styles.langPillTextActive]}>
+              Français
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.langPill, locale === 'en' && styles.langPillActive]}
+            onPress={() => setLocale('en')}
+            activeOpacity={0.8}>
+            <Text style={[styles.langPillText, locale === 'en' && styles.langPillTextActive]}>
+              English
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Player section */}
         <Text style={styles.sectionTitle}>{t.settings.sections.player}</Text>
@@ -151,7 +184,7 @@ export default function SettingsScreen() {
             </View>
 
             <Slider
-              style={{width: '100%', height: 40}}
+              style={styles.slider}
               minimumValue={0}
               maximumValue={12}
               step={1}
@@ -187,7 +220,7 @@ export default function SettingsScreen() {
 
         <View style={styles.settingRow}>
           <PhoneRotateIcon locked={rotationLocked} />
-          <View style={[styles.textBlock, {marginLeft: 12}]}>
+          <View style={[styles.textBlock, styles.textBlockIndent]}>
             <Text style={styles.settingLabel}>{t.settings.display.lockRotationLabel}</Text>
             <Text style={styles.settingDesc}>{t.settings.display.lockRotationDesc}</Text>
           </View>
@@ -207,6 +240,8 @@ export default function SettingsScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  slider: {width: '100%', height: 40},
+  textBlockIndent: {marginLeft: 12},
   container: {
     flex: 1,
     backgroundColor: '#121212',
@@ -319,5 +354,33 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: '500',
+  },
+  languagePicker: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 12,
+    marginBottom: 8,
+  },
+  langPill: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 24,
+    alignItems: 'center',
+    backgroundColor: '#282828',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  langPillActive: {
+    borderColor: '#FF6B35',
+    backgroundColor: '#2A1A10',
+  },
+  langPillText: {
+    color: '#A7A7A7',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  langPillTextActive: {
+    color: '#FF6B35',
   },
 });

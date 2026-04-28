@@ -1,3 +1,12 @@
+/**
+ * @file index.tsx
+ * @description Artist detail screen. Shows artist biography, top songs, and album
+ *   discography fetched from the Subsonic API.
+ * @author DoodzProg
+ * @version 0.9.0
+ * @license MIT
+ */
+
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
@@ -23,7 +32,7 @@ import {loadAndPlayTracks} from '../../services/playerActions';
 import type {Track} from '../../store/playerStore';
 import type {LibraryStackParams} from '../../navigation/types';
 import AlbumCard from '../../components/AlbumCard';
-import {t} from '../../i18n/fr';
+import {useT, getT} from '../../i18n';
 
 const {width: SCREEN_W} = Dimensions.get('window');
 const COVER_SIZE = SCREEN_W;
@@ -40,12 +49,13 @@ function PlayIcon({size = 24, color = '#000'}: {size?: number; color?: string}) 
 type RouteT = RouteProp<LibraryStackParams, 'ArtistDetail'>;
 
 export default function ArtistDetailScreen() {
+  const t = useT();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<LibraryStackParams, 'ArtistDetail'>>();
   const route = useRoute<RouteT>();
   const {artistId: routeArtistId, artistName: routeArtistName} = route.params;
 
-  const [artistName, setArtistName] = useState(t.artistDetail.loading);
+  const [artistName, setArtistName] = useState<string>(t.artistDetail.loading);
   const [artistImage, setArtistImage] = useState<string | null>(null);
   const [albums, setAlbums] = useState<any[]>([]);
   const [topSongs, setTopSongs] = useState<any[]>([]);
@@ -66,7 +76,7 @@ export default function ArtistDetailScreen() {
           artistId = d.searchResult3?.artist?.[0]?.id;
         }
         if (!artistId) {
-          setArtistName(routeArtistName || t.artistDetail.unknownArtist);
+          setArtistName(routeArtistName || getT().artistDetail.unknownArtist);
           if (routeArtistName) {
             const r = await fetch(`https://api.deezer.com/search/artist?q=${encodeURIComponent(routeArtistName)}`);
             const j = await r.json();
@@ -79,7 +89,7 @@ export default function ArtistDetailScreen() {
         const data = resArtist['subsonic-response'] || resArtist;
         const artistData = data.artist || {};
         
-        setArtistName(artistData.name || t.artistDetail.unknownArtist);
+        setArtistName(artistData.name || getT().artistDetail.unknownArtist);
         setAlbums(artistData.album || []);
 
         try {
@@ -129,7 +139,7 @@ export default function ArtistDetailScreen() {
         {artistImage ? (
           <Image source={{uri: artistImage}} style={styles.coverImage} />
         ) : (
-          <View style={[styles.coverImage, {backgroundColor: '#333'}]} />
+          <View style={[styles.coverImage, styles.coverPlaceholder]} />
         )}
         <LinearGradient colors={['transparent', darkTheme.background]} style={styles.coverGradient} />
       </Animated.View>
@@ -144,12 +154,12 @@ export default function ArtistDetailScreen() {
         showsVerticalScrollIndicator={false}
         onScroll={Animated.event([{nativeEvent: {contentOffset: {y: scrollY}}}], {useNativeDriver: true})}
         scrollEventThrottle={16}
-        contentContainerStyle={{ paddingTop: COVER_SIZE * 0.7, paddingBottom: 100 }}
+        contentContainerStyle={styles.scrollContent}
       >
         <Text style={styles.artistName}>{artistName}</Text>
 
         {loading ? (
-          <ActivityIndicator size="large" color={darkTheme.accent} style={{marginTop: 50}} />
+          <ActivityIndicator size="large" color={darkTheme.accent} style={styles.loader} />
         ) : (
           <View style={styles.content}>
             
@@ -191,7 +201,7 @@ export default function ArtistDetailScreen() {
                       name={item.name} 
                       artist={item.artist} 
                       coverArt={item.coverArt}
-                      onPress={() => navigation.navigate('Library', { screen: 'AlbumDetail', params: { albumId: item.id } })}
+                      onPress={() => navigation.navigate('AlbumDetail', { albumId: item.id })}
                     />
                   )}
                 />
@@ -205,6 +215,9 @@ export default function ArtistDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  coverPlaceholder: {backgroundColor: '#333'},
+  scrollContent: {paddingTop: COVER_SIZE * 0.7, paddingBottom: 100},
+  loader: {marginTop: 50},
   root: { flex: 1, backgroundColor: darkTheme.background },
   topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, paddingHorizontal: 12 },
   backBtn: { padding: 6, alignSelf: 'flex-start' },

@@ -43,11 +43,6 @@ yarn-error.log
 
 # fastlane
 #
-# It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
-# screenshots whenever they are needed.
-# For more information about the recommended setup visit:
-# https://docs.fastlane.tools/best-practices/source-control/
-
 **/fastlane/report.xml
 **/fastlane/Preview.html
 **/fastlane/screenshots
@@ -76,3 +71,11 @@ src/api/apiKeys.ts
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Android signing — never commit
+android/app/*.keystore
+android/keystore.properties
+
+# APK binaries and temp files
+*.apk
+temporaire.txt

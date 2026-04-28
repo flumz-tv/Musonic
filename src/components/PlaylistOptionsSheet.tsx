@@ -18,7 +18,7 @@ import {darkTheme} from '../theme';
 import {getPlaylist, updatePlaylist, deletePlaylist} from '../api/endpoints/playlists';
 import {getStreamUrl, getCoverArtUrl} from '../api/client';
 import {syncUpcomingFromRNTP} from '../services/playerActions';
-import {t} from '../i18n/fr';
+import {useT, getT} from '../i18n';
 
 const {height: SH} = Dimensions.get('window');
 const ICON_COLOR = '#B3B3B3';
@@ -152,6 +152,7 @@ function RenameModal({
   onCancel: () => void;
   onConfirm: (name: string) => void;
 }) {
+  const t = useT();
   const [value, setValue] = useState(initialName);
   useEffect(() => {
     if (visible) setValue(initialName);
@@ -176,7 +177,7 @@ function RenameModal({
               <Text style={styles.renameBtnCancelText}>{t.renameModal.cancelButton}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.renameBtnOk, !value.trim() && {opacity: 0.4}]}
+              style={[styles.renameBtnOk, !value.trim() && styles.disabled]}
               onPress={() => value.trim() && onConfirm(value.trim())}
               activeOpacity={0.7}
               disabled={!value.trim()}>
@@ -201,6 +202,7 @@ export default function PlaylistOptionsSheet({
   onRenamed,
   onDeleted,
 }: Props) {
+  const t = useT();
   const translateY = useRef(new Animated.Value(SH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const [renameVisible, setRenameVisible] = useState(false);
@@ -241,16 +243,16 @@ export default function PlaylistOptionsSheet({
       const idx = await TrackPlayer.getActiveTrackIndex();
       await TrackPlayer.add(tracks, idx != null ? idx + 1 : undefined);
       await syncUpcomingFromRNTP();
-      onToast(t.playlistOptions.queuedToast(tracks.length));
+      onToast(getT().playlistOptions.queuedToast(tracks.length));
     } catch {
-      onToast(t.playlistOptions.queueError);
+      onToast(getT().playlistOptions.queueError);
     }
   }, [p, onClose, onToast]);
 
   const handlePin = useCallback(() => {
     onTogglePin();
     onClose();
-    onToast(isPinned ? t.playlistOptions.unpinnedToast : t.playlistOptions.pinnedToast);
+    onToast(isPinned ? getT().playlistOptions.unpinnedToast : getT().playlistOptions.pinnedToast);
   }, [onTogglePin, onClose, onToast, isPinned]);
 
   const handleRenameConfirm = useCallback(async (newName: string) => {
@@ -260,30 +262,30 @@ export default function PlaylistOptionsSheet({
     try {
       await updatePlaylist(p.id, newName);
       onRenamed?.(newName);
-      onToast(t.playlistOptions.renamedToast);
+      onToast(getT().playlistOptions.renamedToast);
     } catch {
-      onToast(t.playlistOptions.renameError);
+      onToast(getT().playlistOptions.renameError);
     }
   }, [p, onClose, onRenamed, onToast]);
 
   const handleDelete = useCallback(() => {
     if (!p) return;
     Alert.alert(
-      t.playlistOptions.deleteTitle,
-      t.playlistOptions.deleteMessage(p.name),
+      getT().playlistOptions.deleteTitle,
+      getT().playlistOptions.deleteMessage(p.name),
       [
-        {text: t.playlistOptions.cancelButton, style: 'cancel'},
+        {text: getT().playlistOptions.cancelButton, style: 'cancel'},
         {
-          text: t.playlistOptions.deleteConfirm,
+          text: getT().playlistOptions.deleteConfirm,
           style: 'destructive',
           onPress: async () => {
             onClose();
             try {
               await deletePlaylist(p.id);
               onDeleted?.();
-              onToast(t.playlistOptions.deletedToast);
+              onToast(getT().playlistOptions.deletedToast);
             } catch {
-              onToast(t.playlistOptions.deleteError);
+              onToast(getT().playlistOptions.deleteError);
             }
           },
         },
@@ -295,7 +297,7 @@ export default function PlaylistOptionsSheet({
     <>
       <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
         <Animated.View
-          style={[StyleSheet.absoluteFill, {backgroundColor: '#000', opacity: overlayOpacity}]}
+          style={[StyleSheet.absoluteFill, styles.overlay, {opacity: overlayOpacity}]}
           pointerEvents="none"
         />
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
@@ -356,6 +358,8 @@ export default function PlaylistOptionsSheet({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  overlay: {backgroundColor: '#000'},
+  disabled: {opacity: 0.4},
   sheet: {
     position: 'absolute',
     bottom: 0,

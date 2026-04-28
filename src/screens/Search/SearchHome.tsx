@@ -5,7 +5,7 @@ import {useNavigation} from '@react-navigation/native';
 import Svg, {Circle, Path} from 'react-native-svg';
 import {darkTheme} from '../../theme';
 import GlobalHeader from '../../components/GlobalHeader';
-import {t} from '../../i18n/fr';
+import {useT} from '../../i18n';
 
 function SearchIconDark({size = 24, color = '#121212'}) {
   return (
@@ -17,6 +17,7 @@ function SearchIconDark({size = 24, color = '#121212'}) {
 }
 
 export default function SearchHome() {
+  const t = useT();
   const navigation = useNavigation<any>();
 
   return (

@@ -1,3 +1,14 @@
+/**
+ * @file index.tsx
+ * @description Home screen. Displays personalised quick-access cards, recently
+ *   played albums, frequently played albums, AI-recommended songs, and a discover
+ *   section of similar artists. Supports filter pills, pull-to-refresh, and
+ *   auto-recovery when connectivity is restored.
+ * @author DoodzProg
+ * @version 0.9.0
+ * @license MIT
+ */
+
 import React, {useEffect, useState, useCallback, useRef} from 'react';
 import {
   View,
@@ -6,6 +17,8 @@ import {
   StyleSheet,
   RefreshControl,
   StatusBar,
+  Text,
+  TouchableOpacity,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -29,17 +42,10 @@ import QuickAccessCard from '../../components/QuickAccessCard';
 import SectionHeader from '../../components/SectionHeader';
 import HeartIcon from '../../components/icons/HeartIcon';
 import GlobalHeader from '../../components/GlobalHeader';
-import {t} from '../../i18n/fr';
+import {useT, getT} from '../../i18n';
+import {useNetworkStore} from '../../store/networkStore';
 
-const FILTERS = [
-  {key: 'all', label: t.home.filters.all},
-  {key: 'recent', label: t.home.filters.recent},
-  {key: 'frequent', label: t.home.filters.frequent},
-  {key: 'reco', label: t.home.filters.reco},
-  {key: 'discover', label: t.home.filters.discover},
-] as const;
-
-type FilterKey = (typeof FILTERS)[number]['key'];
+type FilterKey = 'all' | 'recent' | 'frequent' | 'reco' | 'discover';
 
 type HomeData = {
   recentAlbums: SubsonicAlbum[];
@@ -51,6 +57,15 @@ type HomeData = {
 };
 
 export default function HomeScreen() {
+  const t = useT();
+  const filters: {key: FilterKey; label: string}[] = [
+    {key: 'all', label: t.home.filters.all},
+    {key: 'recent', label: t.home.filters.recent},
+    {key: 'frequent', label: t.home.filters.frequent},
+    {key: 'reco', label: t.home.filters.reco},
+    {key: 'discover', label: t.home.filters.discover},
+  ];
+
   const [data, setData] = useState<HomeData>({
     recentAlbums: [],
     frequentAlbums: [],
@@ -60,6 +75,7 @@ export default function HomeScreen() {
     likedCount: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
 
@@ -121,7 +137,7 @@ export default function HomeScreen() {
       const discoverArtists = await Promise.all(
         rawDiscover.map(async a => ({
           ...a,
-          artistImageUrl: await getArtistImage(a.name),
+          artistImageUrl: (await getArtistImage(a.name)) ?? undefined,
         })),
       );
 
@@ -133,8 +149,10 @@ export default function HomeScreen() {
         playlists,
         likedCount: starred.songs.length,
       });
+      setError(false);
     } catch (e) {
       console.warn('Home load error', e);
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -145,17 +163,33 @@ export default function HomeScreen() {
     load();
   }, [load, playlistVersion]);
 
+  // ─── Auto-recovery when connectivity is restored ──────────────────────────
+  const isOffline = useNetworkStore(s => s.isOffline);
+  const prevOfflineRef = useRef(isOffline);
+  const errorRef = useRef(error);
+  errorRef.current = error;
+
+  useEffect(() => {
+    const wasOffline = prevOfflineRef.current;
+    prevOfflineRef.current = isOffline;
+    if (wasOffline && !isOffline && errorRef.current) {
+      setError(false);
+      setLoading(true);
+      load();
+    }
+  }, [isOffline, load]);
+
   const onRefresh = () => {
     setRefreshing(true);
     load();
   };
 
-  const handleFilter = (key: FilterKey) => {
-    setActiveFilter(key);
+  const handleFilter = (key: string) => {
+    setActiveFilter(key as FilterKey);
     if (key === 'all') {
       scrollRef.current?.scrollTo({y: 0, animated: true});
-    } else if (sectionYs.current[key] !== undefined) {
-      scrollRef.current?.scrollTo({y: sectionYs.current[key]!, animated: true});
+    } else if (sectionYs.current[key as FilterKey] !== undefined) {
+      scrollRef.current?.scrollTo({y: sectionYs.current[key as FilterKey]!, animated: true});
     }
   };
 
@@ -223,8 +257,8 @@ export default function HomeScreen() {
 
     const track = {
       id: trackId,
-      title: s.title || s.name || t.home.unknownTitle,
-      artist: s.artist || t.home.unknownArtist,
+      title: s.title || s.name || getT().home.unknownTitle,
+      artist: s.artist || getT().home.unknownArtist,
       album: s.album || 'Single',
       duration: Number(s.duration) || 0,
       coverArt: s.coverArt || s.albumId || trackId,
@@ -246,7 +280,7 @@ export default function HomeScreen() {
 
       <GlobalHeader
         variant="home"
-        filters={FILTERS}
+        filters={filters}
         activeFilter={activeFilter}
         onFilterPress={handleFilter}
       />
@@ -264,8 +298,21 @@ export default function HomeScreen() {
           />
         }>
 
+        {/* Error state */}
+        {!loading && error && data.recentAlbums.length === 0 && (
+          <View style={styles.errorState}>
+            <Text style={styles.errorText}>{t.home.loadError}</Text>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() => { setError(false); setLoading(true); load(); }}
+              activeOpacity={0.7}>
+              <Text style={styles.retryText}>{t.common.retry}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Quick access grid */}
-        {!loading && quickRows.length > 0 && (
+        {!loading && !error && quickRows.length > 0 && (
           <View style={styles.quickGrid}>
             {quickRows.map((row, i) => (
               <View key={i} style={styles.quickRow}>
@@ -283,17 +330,17 @@ export default function HomeScreen() {
                     onPress={() => handleQuickPress(item)}
                   />
                 ))}
-                {row.length === 1 && <View style={{flex: 1}} />}
+                {row.length === 1 && <View style={styles.spacer} />}
               </View>
             ))}
           </View>
         )}
 
         {/* Recently played */}
-        {data.recentAlbums.length > 0 && (
+        {!error && data.recentAlbums.length > 0 && (
           <View
             onLayout={e => {
-              sectionYs.current['recent'] = e.nativeEvent.layout.y;
+              sectionYs.current.recent = e.nativeEvent.layout.y;
             }}>
             <SectionHeader title={t.home.sections.recentlyPlayed} />
             <FlatList
@@ -319,10 +366,10 @@ export default function HomeScreen() {
         )}
 
         {/* Frequently played */}
-        {data.frequentAlbums.length > 0 && (
+        {!error && data.frequentAlbums.length > 0 && (
           <View
             onLayout={e => {
-              sectionYs.current['frequent'] = e.nativeEvent.layout.y;
+              sectionYs.current.frequent = e.nativeEvent.layout.y;
             }}>
             <SectionHeader title={t.home.sections.frequentlyPlayed} />
             <FlatList
@@ -348,10 +395,10 @@ export default function HomeScreen() {
         )}
 
         {/* Recommendations */}
-        {data.recommendedSongs.length > 0 && (
+        {!error && data.recommendedSongs.length > 0 && (
           <View
             onLayout={e => {
-              sectionYs.current['reco'] = e.nativeEvent.layout.y;
+              sectionYs.current.reco = e.nativeEvent.layout.y;
             }}>
             <SectionHeader title={t.home.sections.recommendations} />
             <FlatList
@@ -361,7 +408,7 @@ export default function HomeScreen() {
               renderItem={({item}) => (
                 <AlbumCard
                   id={item.id}
-                  name={item.title || item.name}
+                  name={item.title}
                   artist={item.artist}
                   coverArt={item.coverArt}
                   onPress={() => handlePlaySong(item)}
@@ -374,10 +421,10 @@ export default function HomeScreen() {
         )}
 
         {/* Discover */}
-        {data.discoverArtists.length > 0 && (
+        {!error && data.discoverArtists.length > 0 && (
           <View
             onLayout={e => {
-              sectionYs.current['discover'] = e.nativeEvent.layout.y;
+              sectionYs.current.discover = e.nativeEvent.layout.y;
             }}>
             <SectionHeader title={t.home.sections.discover} />
             <FlatList
@@ -409,6 +456,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  spacer: {flex: 1},
   root: {
     flex: 1,
     backgroundColor: darkTheme.background,
@@ -431,4 +479,30 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   bottomPad: {height: 100},
+  errorState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 80,
+    paddingHorizontal: 32,
+  },
+  errorText: {
+    color: '#E84040',
+    fontSize: 15,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  retryBtn: {
+    marginTop: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#282828',
+    borderWidth: 1,
+    borderColor: '#444',
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });

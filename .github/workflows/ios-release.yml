@@ -1,0 +1,71 @@
+name: iOS Release IPA
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Inspired by azusa-player-mobile (lovegaoshi/azusa-player-mobile)
+# Builds an unsigned IPA suitable for sideloading (AltStore / SideStore).
+# For App Store distribution, add a valid provisioning profile and signing identity.
+
+jobs:
+  build-ios:
+    name: Build IPA (unsigned)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Install CocoaPods
+        run: |
+          gem install cocoapods --no-document
+          cd ios && pod install
+
+      - name: Build archive (unsigned)
+        run: |
+          cd ios
+          xcodebuild \
+            -scheme Musonic \
+            -workspace Musonic.xcworkspace \
+            -destination "generic/platform=iOS" \
+            -configuration Release \
+            clean archive \
+            -archivePath "build/Musonic.xcarchive" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IPA
+        run: |
+          cd ios
+          mkdir -p build/Payload
+          mv build/Musonic.xcarchive/Products/Applications/Musonic.app build/Payload/Musonic.app
+          cd build
+          zip -r Musonic.ipa Payload/
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: musonic-ipa-${{ github.sha }}
+          path: ios/build/Musonic.ipa
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ios/build/Musonic.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

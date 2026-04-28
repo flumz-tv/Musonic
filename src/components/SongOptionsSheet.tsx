@@ -17,7 +17,7 @@ import {darkTheme} from '../theme';
 import {updatePlaylist} from '../api/endpoints/playlists';
 import {getStreamUrl, getCoverArtUrl} from '../api/client';
 import {syncUpcomingFromRNTP} from '../services/playerActions';
-import {t} from '../i18n/fr';
+import {useT, getT} from '../i18n';
 import type {SubsonicSong} from '../api/types';
 
 const {height: SH} = Dimensions.get('window');
@@ -127,6 +127,7 @@ export default function SongOptionsSheet({
   onNavigateAlbum,
   onNavigateArtist,
 }: Props) {
+  const t = useT();
   const translateY = useRef(new Animated.Value(SH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const [addPlaylistVisible, setAddPlaylistVisible] = useState(false);
@@ -166,9 +167,9 @@ export default function SongOptionsSheet({
       const idx = await TrackPlayer.getActiveTrackIndex();
       await TrackPlayer.add(rnTrack, idx != null ? idx + 1 : undefined);
       await syncUpcomingFromRNTP();
-      onToast(t.songOptions.addedToQueue);
+      onToast(getT().songOptions.addedToQueue);
     } catch {
-      onToast(t.songOptions.addError);
+      onToast(getT().songOptions.addError);
     }
     onClose();
   }, [tr, onToast, onClose]);
@@ -178,10 +179,10 @@ export default function SongOptionsSheet({
     onClose();
     try {
       await updatePlaylist(playlistId, undefined, undefined, [trackIndex]);
-      onToast(t.songOptions.removedFromPlaylist);
+      onToast(getT().songOptions.removedFromPlaylist);
       onRemoved?.();
     } catch {
-      onToast(t.songOptions.removeError);
+      onToast(getT().songOptions.removeError);
     }
   }, [playlistId, trackIndex, onClose, onToast, onRemoved]);
 
@@ -199,7 +200,7 @@ export default function SongOptionsSheet({
     <>
       <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
         <Animated.View
-          style={[StyleSheet.absoluteFill, {backgroundColor: '#000', opacity: overlayOpacity}]}
+          style={[StyleSheet.absoluteFill, styles.overlay, {opacity: overlayOpacity}]}
           pointerEvents="none"
         />
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
@@ -273,6 +274,7 @@ export default function SongOptionsSheet({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  overlay: {backgroundColor: '#000'},
   sheet: {
     position: 'absolute',
     bottom: 0,
