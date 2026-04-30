@@ -1,8 +1,16 @@
+/**
+ * @file GlobalHeader.tsx
+ * @description Top app bar used across main screens. Shows the Musonic logo,
+ *   a hamburger drawer trigger, and optional horizontal filter pills.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React from 'react';
 import {View, Text, ScrollView, TouchableOpacity, StyleSheet} from 'react-native';
 import {useDrawer} from './DrawerContainer';
 import Svg, {Defs, LinearGradient, Stop, Rect} from 'react-native-svg';
-import ProfileIcon from './icons/ProfileIcon';
+import LogoIcon from './icons/LogoIcon';
 import {darkTheme} from '../theme';
 
 type Filter = {key: string; label: string};
@@ -26,7 +34,7 @@ export default function GlobalHeader(props: Props) {
     return (
       <View style={styles.simpleHeader}>
         <TouchableOpacity onPress={openDrawer} style={styles.profileCircle} activeOpacity={0.7}>
-          <ProfileIcon size={20} color="#fff" />
+          <LogoIcon size={36} />
         </TouchableOpacity>
         <Text style={styles.simpleTitle}>{props.title}</Text>
       </View>
@@ -70,7 +78,7 @@ export default function GlobalHeader(props: Props) {
       {/* Profil absolu au-dessus */}
       <View style={styles.profileAbsolute}>
         <TouchableOpacity onPress={openDrawer} style={styles.profileCircle} activeOpacity={0.7}>
-          <ProfileIcon size={20} color="#fff" />
+          <LogoIcon size={36} />
         </TouchableOpacity>
       </View>
     </View>
@@ -84,7 +92,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: darkTheme.background,
     paddingLeft: 16,
-    paddingVertical: 10,
+    height: 56,
   },
   pillsScroll: {flex: 1},
   pillsContent: {
@@ -131,7 +139,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: darkTheme.background,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    height: 56,
     gap: 16,
   },
   simpleTitle: {
@@ -145,8 +153,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#333',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
 });

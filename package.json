@@ -1,6 +1,6 @@
 {
   "name": "Musonic",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
@@ -25,6 +25,7 @@
     "react-native-draggable-flatlist": "^4.0.3",
     "react-native-gesture-handler": "^2.31.1",
     "react-native-image-colors": "^1.5.2",
+    "react-native-image-picker": "^8.2.1",
     "react-native-linear-gradient": "^2.8.3",
     "react-native-mmkv": "^3.3.3",
     "react-native-orientation-locker": "^1.7.0",

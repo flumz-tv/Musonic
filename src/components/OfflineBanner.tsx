@@ -1,3 +1,11 @@
+/**
+ * @file OfflineBanner.tsx
+ * @description Animated top banner that slides in when the device loses
+ *   connectivity and slides out when it reconnects.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React, {useEffect, useRef} from 'react';
 import {Animated, StyleSheet, Text} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';

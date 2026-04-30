@@ -1,3 +1,11 @@
+/**
+ * @file SearchHome.tsx
+ * @description Search landing screen. Shows genre/mood browse cards and
+ *   transitions to SearchActive when the user taps the search bar.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React from 'react';
 import {View, StyleSheet, Text, TouchableOpacity, StatusBar, ScrollView} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';

@@ -3,11 +3,11 @@
  * @description Liked Songs screen. Displays all starred tracks with playback,
  *   add-to-playlist, and remove-from-liked actions.
  * @author DoodzProg
- * @version 0.9.0
+ * @version 0.9.1
  * @license MIT
  */
 
-import React, {useState, useCallback, useRef} from 'react';
+import React, {useState, useCallback} from 'react';
 import {
   View,
   Text,
@@ -31,8 +31,8 @@ import type {Track} from '../../store/playerStore';
 import CoverArt from '../../components/CoverArt';
 import HeartIcon from '../../components/icons/HeartIcon';
 import ShuffleIcon from '../../components/icons/ShuffleIcon';
-import AddToPlaylistSheet from '../../components/AddToPlaylistSheet';
-import Toast from '../../components/Toast';
+import SongOptionsSheet from '../../components/SongOptionsSheet';
+import {showToast} from '../../components/Toast';
 import {useT} from '../../i18n';
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
@@ -98,20 +98,8 @@ export default function LikedSongsScreen() {
   const [songs, setSongs] = useState<SubsonicSong[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [sheetTrackId, setSheetTrackId] = useState<string | undefined>();
-  const [sheetTrackTitle, setSheetTrackTitle] = useState<string | undefined>();
-  const [sheetVisible, setSheetVisible] = useState(false);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showToast = useCallback((msg: string) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToastMessage(msg);
-    setToastVisible(true);
-    toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
-  }, []);
-
+  const [selectedSong, setSelectedSong] = useState<SubsonicSong | null>(null);
+  const [songOptsVisible, setSongOptsVisible] = useState(false);
   useFocusEffect(useCallback(() => {
     setLoading(true);
     getStarred()
@@ -140,10 +128,17 @@ export default function LikedSongsScreen() {
   );
 
   const handleMore = useCallback((song: SubsonicSong) => {
-    setSheetTrackId(String(song.id));
-    setSheetTrackTitle(song.title);
-    setSheetVisible(true);
+    setSelectedSong(song);
+    setSongOptsVisible(true);
   }, []);
+
+  const handleNavigateAlbum = useCallback((albumId: string) => {
+    navigation.navigate('AlbumDetail', {albumId});
+  }, [navigation]);
+
+  const handleNavigateArtist = useCallback((artistId: string | undefined, artistName: string) => {
+    navigation.navigate('ArtistDetail', {artistId, artistName});
+  }, [navigation]);
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -207,6 +202,7 @@ export default function LikedSongsScreen() {
           <TouchableOpacity
             style={styles.songRow}
             onPress={() => handlePressSong(index)}
+            onLongPress={() => handleMore(item)}
             activeOpacity={0.7}>
             <CoverArt id={item.coverArt} size={48} borderRadius={4} />
             <View style={styles.songInfo}>
@@ -228,14 +224,14 @@ export default function LikedSongsScreen() {
         contentContainerStyle={styles.listContent}
       />
 
-      <AddToPlaylistSheet
-        visible={sheetVisible}
-        onClose={() => setSheetVisible(false)}
-        trackId={sheetTrackId}
-        trackTitle={sheetTrackTitle}
+      <SongOptionsSheet
+        visible={songOptsVisible}
+        onClose={() => setSongOptsVisible(false)}
+        track={selectedSong}
         onToast={showToast}
+        onNavigateAlbum={handleNavigateAlbum}
+        onNavigateArtist={handleNavigateArtist}
       />
-      <Toast visible={toastVisible} message={toastMessage} />
     </SafeAreaView>
   );
 }

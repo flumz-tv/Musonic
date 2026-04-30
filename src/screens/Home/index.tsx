@@ -5,7 +5,7 @@
  *   section of similar artists. Supports filter pills, pull-to-refresh, and
  *   auto-recovery when connectivity is restored.
  * @author DoodzProg
- * @version 0.9.0
+ * @version 0.9.1
  * @license MIT
  */
 
@@ -32,8 +32,8 @@ import {
 } from '../../api/endpoints/library';
 import {getPlaylists} from '../../api/endpoints/playlists';
 import {getArtistImage} from '../../api/lastfm';
-import {getStreamUrl} from '../../api/client';
-import {playTrack} from '../../services/playerActions';
+import {getStreamUrl, getCoverArtUrl} from '../../api/client';
+import {loadAndPlayAlbum, loadAndPlayTracks} from '../../services/playerActions';
 import { usePlayerStore, type Track } from '../../store/playerStore';
 import type {SubsonicAlbum, SubsonicSong, SubsonicSimilarArtist, SubsonicPlaylist} from '../../api/types';
 import AlbumCard from '../../components/AlbumCard';
@@ -42,7 +42,7 @@ import QuickAccessCard from '../../components/QuickAccessCard';
 import SectionHeader from '../../components/SectionHeader';
 import HeartIcon from '../../components/icons/HeartIcon';
 import GlobalHeader from '../../components/GlobalHeader';
-import {useT, getT} from '../../i18n';
+import {useT} from '../../i18n';
 import {useNetworkStore} from '../../store/networkStore';
 
 type FilterKey = 'all' | 'recent' | 'frequent' | 'reco' | 'discover';
@@ -233,41 +233,38 @@ export default function HomeScreen() {
   const handleQuickPress = useCallback(
     (item: QuickItem) => {
       if (item.kind === 'playlist') {
-        navigation.navigate('Library', {
-          screen: 'PlaylistDetail',
-          params: {playlistId: item.id},
-        });
+        navigation.navigate('PlaylistDetail', {playlistId: item.id});
       } else if (item.kind === 'album') {
-        navigation.navigate('Library', {
-          screen: 'AlbumDetail',
-          params: {albumId: item.id},
-        });
+        navigation.navigate('AlbumDetail', {albumId: item.id});
       } else if (item.kind === 'liked') {
-        navigation.navigate('Library', {screen: 'LikedSongs'}); 
+        navigation.navigate('LikedSongs');
       }
     },
     [navigation],
   );
 
-  const handlePlaySong = useCallback((s: any) => {
-    const trackId = String(s.id || s.songId || s.trackId);
-    if (!trackId || trackId === 'undefined') return;
-
-    const stream = getStreamUrl(trackId);
-
-    const track = {
-      id: trackId,
-      title: s.title || s.name || getT().home.unknownTitle,
-      artist: s.artist || getT().home.unknownArtist,
-      album: s.album || 'Single',
-      duration: Number(s.duration) || 0,
-      coverArt: s.coverArt || s.albumId || trackId,
-      streamUrl: stream,
-      url: stream,
-    } as Track;
-
-    playTrack(track);
-  }, []);
+  const handlePlayReco = useCallback(
+    (index: number) => {
+      if (data.recommendedSongs.length === 0) return;
+      const tracks: Track[] = data.recommendedSongs.map(s => {
+        const trackId = String(s.id);
+        return {
+          id: trackId,
+          title: s.title,
+          artist: s.artist,
+          album: s.album,
+          duration: s.duration,
+          coverArt: s.coverArt || trackId,
+          streamUrl: getStreamUrl(trackId),
+          url: getStreamUrl(trackId),
+          artwork: getCoverArtUrl(s.coverArt || trackId, 300),
+          artistId: s.artistId,
+        };
+      });
+      loadAndPlayTracks(tracks, index);
+    },
+    [data.recommendedSongs],
+  );
 
   const quickRows: typeof quickItems[] = [];
   for (let i = 0; i < Math.min(quickItems.length, 8); i += 2) {
@@ -353,10 +350,12 @@ export default function HomeScreen() {
                   name={item.name}
                   artist={item.artist}
                   coverArt={item.coverArt}
-                  onPress={() => navigation.navigate('Library', { 
-                    screen: 'AlbumDetail', 
-                    params: { albumId: item.id } 
-                  })}
+                  label={item.songCount === 1 ? t.home.typeSingle : t.home.typeAlbum}
+                  onPress={() =>
+                    item.songCount === 1
+                      ? loadAndPlayAlbum(item.id)
+                      : navigation.navigate('AlbumDetail', {albumId: item.id})
+                  }
                 />
               )}
               contentContainerStyle={styles.hList}
@@ -382,10 +381,12 @@ export default function HomeScreen() {
                   name={item.name}
                   artist={item.artist}
                   coverArt={item.coverArt}
-                  onPress={() => navigation.navigate('Library', { 
-                    screen: 'AlbumDetail', 
-                    params: { albumId: item.id } 
-                  })}
+                  label={item.songCount === 1 ? t.home.typeSingle : t.home.typeAlbum}
+                  onPress={() =>
+                    item.songCount === 1
+                      ? loadAndPlayAlbum(item.id)
+                      : navigation.navigate('AlbumDetail', {albumId: item.id})
+                  }
                 />
               )}
               contentContainerStyle={styles.hList}
@@ -405,13 +406,13 @@ export default function HomeScreen() {
               horizontal
               data={data.recommendedSongs}
               keyExtractor={s => s.id}
-              renderItem={({item}) => (
+              renderItem={({item, index}) => (
                 <AlbumCard
                   id={item.id}
                   name={item.title}
                   artist={item.artist}
                   coverArt={item.coverArt}
-                  onPress={() => handlePlaySong(item)}
+                  onPress={() => handlePlayReco(index)}
                 />
               )}
               contentContainerStyle={styles.hList}
@@ -437,10 +438,7 @@ export default function HomeScreen() {
                   name={item.name}
                   coverArt={item.coverArt}
                   imageUrl={item.artistImageUrl}
-                  onPress={() => navigation.navigate('Library', { 
-                    screen: 'ArtistDetail', 
-                    params: { artistId: item.id } 
-                  })}
+                  onPress={() => navigation.navigate('ArtistDetail', {artistId: item.id})}
                 />
               )}
               contentContainerStyle={styles.hList}
@@ -478,7 +476,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 4,
   },
-  bottomPad: {height: 100},
+  bottomPad: {height: 200},
   errorState: {
     alignItems: 'center',
     justifyContent: 'center',

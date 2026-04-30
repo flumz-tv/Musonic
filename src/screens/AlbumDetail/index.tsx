@@ -4,7 +4,7 @@
  *   and playback controls for a specific album. Supports shuffle, star/unstar,
  *   and animated parallax header.
  * @author DoodzProg
- * @version 0.9.0
+ * @version 0.9.1
  * @license MIT
  */
 
@@ -14,6 +14,7 @@ import {
   Animated,
   Dimensions,
   FlatList,
+  Image,
   StatusBar,
   StyleSheet,
   Text,
@@ -28,16 +29,25 @@ import Svg, {Circle, Path} from 'react-native-svg';
 import LinearGradient from 'react-native-linear-gradient';
 import {darkTheme} from '../../theme';
 import CoverArt from '../../components/CoverArt';
-import Toast from '../../components/Toast';
+import {showToast} from '../../components/Toast';
+import HeartIcon from '../../components/icons/HeartIcon';
+import ShuffleIcon from '../../components/icons/ShuffleIcon';
+import SongOptionsSheet from '../../components/SongOptionsSheet';
+import AlbumOptionsSheet from '../../components/AlbumOptionsSheet';
+import AddToPlaylistSheet from '../../components/AddToPlaylistSheet';
 import {useActiveTrack} from 'react-native-track-player';
-import {loadAndPlayAlbum, loadAndPlayTracks} from '../../services/playerActions';
+import TrackPlayer from 'react-native-track-player';
+import {loadAndPlayAlbum, loadAndPlayTracks, syncUpcomingFromRNTP} from '../../services/playerActions';
 import {usePlayerStore} from '../../store/playerStore';
+import {usePlaylistCacheStore} from '../../store/playlistCacheStore';
 import {colorFromId} from '../../utils/colorUtils';
 import type {SubsonicSong} from '../../api/types';
 import type {LibraryStackParams} from '../../navigation/types';
 import type {Track} from '../../store/playerStore';
 import {subsonicGet, getCoverArtUrl, getStreamUrl} from '../../api/client';
+import {getArtistImage} from '../../api/lastfm';
 import {useT, getT} from '../../i18n';
+import BackArrowIcon from '../../components/icons/BackArrowIcon';
 
 const {width: SCREEN_W, height: SCREEN_H} = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 80, 260);
@@ -82,17 +92,11 @@ function useAlbumColor(coverArtId?: string): string {
 }
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
-function BackIcon({size = 24, color = '#fff'}: {size?: number; color?: string}) {
-  return (<Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M15 4 L7 12 L15 20" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" fill="none" /></Svg>);
-}
 function DownloadIcon({size = 22, color = '#fff'}: {size?: number; color?: string}) {
   return (<Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx={12} cy={12} r={9} stroke={color} strokeWidth={1.8} fill="none" /><Path d="M12 7 V14 M9 12 L12 15 L15 12" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" fill="none" /></Svg>);
 }
 function MoreDotsIcon({size = 22, color = '#fff'}: {size?: number; color?: string}) {
   return (<Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx={5} cy={12} r={1.8} fill={color} /><Circle cx={12} cy={12} r={1.8} fill={color} /><Circle cx={19} cy={12} r={1.8} fill={color} /></Svg>);
-}
-function ShuffleIcon({size = 24, color = '#fff'}: {size?: number; color?: string}) {
-  return (<Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M2 4 C6 4 9 10 12 10 C15 10 18 4 22 4 M19 2 L22 4 L19 6" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" /><Path d="M2 20 C6 20 9 14 12 14 C15 14 18 20 22 20 M19 18 L22 20 L19 22" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" /></Svg>);
 }
 function PlayIcon({size = 22, color = '#000'}: {size?: number; color?: string}) {
   return (<Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M7 4 L21 12 L7 20 Z" fill={color} /></Svg>);
@@ -106,11 +110,28 @@ function CheckCircleGreen({size = 24}: {size?: number}) {
 function ThreeDotsVertIcon({size = 18, color = '#888'}: {size?: number; color?: string}) {
   return (<Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx={12} cy={5} r={1.8} fill={color} /><Circle cx={12} cy={12} r={1.8} fill={color} /><Circle cx={12} cy={19} r={1.8} fill={color} /></Svg>);
 }
-// ─── Song row ─────────────────────────────────────────────────────────────────
-type SongRowProps = {song: SubsonicSong; isActive: boolean; index: number; onPress: () => void};
-function SongRow({song, isActive, index, onPress}: SongRowProps) {
+
+// ─── Song Row ─────────────────────────────────────────────────────────────────
+type SongRowProps = {
+  song: SubsonicSong;
+  isActive: boolean;
+  index: number;
+  onPress: () => void;
+  onMore: () => void;
+  onAddToPlaylist: () => void;
+};
+
+function SongRow({song, isActive, index, onPress, onMore, onAddToPlaylist}: SongRowProps) {
+  const likedSongIds = usePlayerStore(s => s.likedSongIds);
+  const localLikeOverrides = usePlayerStore(s => s.localLikeOverrides);
+  const toggleLike = usePlayerStore(s => s.toggleLike);
+  const savedSet = usePlaylistCacheStore(s => s.savedSet);
+  const id = String(song.id);
+  const isLiked = localLikeOverrides[id] !== undefined ? localLikeOverrides[id] : likedSongIds.has(id);
+  const isInPlaylist = savedSet.has(id);
+
   return (
-    <TouchableOpacity style={styles.songRow} activeOpacity={0.7} onPress={onPress}>
+    <TouchableOpacity style={styles.songRow} activeOpacity={0.7} onPress={onPress} onLongPress={onMore} delayLongPress={400}>
       <View style={styles.songIndexWrap}>
         <Text style={[styles.songIndex, isActive && {color: darkTheme.accent}]}>{index}</Text>
       </View>
@@ -122,20 +143,38 @@ function SongRow({song, isActive, index, onPress}: SongRowProps) {
           {song.artist}
         </Text>
       </View>
-      <TouchableOpacity style={styles.songDots} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
-        <ThreeDotsVertIcon />
-      </TouchableOpacity>
+      <View style={styles.songActions}>
+        <TouchableOpacity
+          hitSlop={{top: 10, bottom: 10, left: 10, right: 6}}
+          onPress={() => toggleLike(id)}>
+          <HeartIcon size={20} color={isLiked ? darkTheme.accent : '#444'} filled={isLiked} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          hitSlop={{top: 10, bottom: 10, left: 6, right: 6}}
+          onPress={onAddToPlaylist}>
+          {isInPlaylist
+            ? <CheckCircleGreen size={20} />
+            : <PlusCircleIcon size={20} color="#444" />}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.songDots}
+          hitSlop={{top: 8, bottom: 8, left: 6, right: 8}}
+          onPress={onMore}>
+          <ThreeDotsVertIcon />
+        </TouchableOpacity>
+      </View>
     </TouchableOpacity>
   );
 }
 
 // ─── List Header ──────────────────────────────────────────────────────────────
 function AlbumHeader({
-  topBarH, coverArtId, albumName, artistName, year,
+  topBarH, coverArtId, albumName, artistName, artistImageUrl, year,
   isShuffled, isStarred, loadingAlbum, coverScale, coverTranslateY,
-  onPlay, onShuffle, onToggleStar,
+  onPlay, onShuffle, onToggleStar, onArtistPress, onMorePress,
 }: any) {
   const t = useT();
+  const [imageError, setImageError] = useState(false);
   return (
     <View>
       <View style={{height: topBarH + 16}} />
@@ -151,31 +190,41 @@ function AlbumHeader({
 
       <View style={styles.meta}>
         <Text style={styles.albumName} numberOfLines={2}>{albumName || '…'}</Text>
-        <View style={styles.metaRow}>
+        <TouchableOpacity style={styles.metaRow} onPress={onArtistPress} activeOpacity={0.7}>
           <View style={styles.artistAvatar}>
-            <Text style={styles.artistAvatarText}>
-              {artistName ? artistName.charAt(0).toUpperCase() : '?'}
-            </Text>
+            {artistImageUrl && !imageError ? (
+              <Image source={{uri: artistImageUrl}} style={styles.artistAvatarImg} onError={() => setImageError(true)} />
+            ) : (
+              <Text style={styles.artistAvatarText}>
+                {artistName ? artistName.charAt(0).toUpperCase() : '?'}
+              </Text>
+            )}
           </View>
           <Text style={styles.metaArtist} numberOfLines={1}>{artistName || t.artistDetail.unknownArtist}</Text>
-        </View>
+        </TouchableOpacity>
         <Text style={styles.metaSub}>Album • {year || t.albumDetail.unknownYear}</Text>
       </View>
 
       <View style={styles.actionsRow}>
         <View style={styles.actionsLeft}>
           <TouchableOpacity style={styles.actionBtn} onPress={onToggleStar} activeOpacity={0.7}>
-              {isStarred ? <CheckCircleGreen size={26} /> : <PlusCircleIcon size={26} />}
-            </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}><DownloadIcon size={22} /></TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}><MoreDotsIcon size={22} /></TouchableOpacity>
+            {isStarred ? <CheckCircleGreen size={26} /> : <PlusCircleIcon size={26} />}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
+            <DownloadIcon size={22} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={onMorePress} activeOpacity={0.7}>
+            <MoreDotsIcon size={22} />
+          </TouchableOpacity>
         </View>
         <View style={styles.actionsRight}>
           <TouchableOpacity style={styles.actionBtn} onPress={onShuffle} activeOpacity={0.7}>
-            <ShuffleIcon size={24} color={isShuffled ? darkTheme.accent : '#fff'} />
+            <ShuffleIcon size={24} active={isShuffled} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.playBtn} onPress={onPlay} activeOpacity={0.85}>
-            {loadingAlbum ? <ActivityIndicator color="#000" size="small" /> : <PlayIcon size={24} color="#000" />}
+            {loadingAlbum
+              ? <ActivityIndicator color="#000" size="small" />
+              : <PlayIcon size={28} color="#000" />}
           </TouchableOpacity>
         </View>
       </View>
@@ -194,15 +243,20 @@ export default function AlbumDetailScreen() {
 
   const [albumName, setAlbumName] = useState('');
   const [artistName, setArtistName] = useState('');
+  const [artistId, setArtistId] = useState<string | undefined>();
+  const [artistImageUrl, setArtistImageUrl] = useState<string | undefined>();
   const [year, setYear] = useState<string | number>('');
   const [songs, setSongs] = useState<SubsonicSong[]>([]);
   const [coverArtId, setCoverArtId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [loadingAlbum, setLoadingAlbum] = useState(false);
   const [isStarred, setIsStarred] = useState(false);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [selectedSong, setSelectedSong] = useState<SubsonicSong | null>(null);
+  const [songOptsVisible, setSongOptsVisible] = useState(false);
+  const [albumOptsVisible, setAlbumOptsVisible] = useState(false);
+  const [addToPlaylistSong, setAddToPlaylistSong] = useState<SubsonicSong | null>(null);
+  const [addToPlaylistVisible, setAddToPlaylistVisible] = useState(false);
 
   const activeTrack = useActiveTrack();
   const currentTrackId = activeTrack?.id ? String(activeTrack.id) : null;
@@ -222,21 +276,20 @@ export default function AlbumDetailScreen() {
         const album = res.album || {};
         setAlbumName(album.name);
         setArtistName(album.artist);
+        setArtistId(album.artistId ? String(album.artistId) : undefined);
         setYear(album.year);
         setCoverArtId(album.coverArt);
         setSongs(album.song || []);
         setIsStarred(!!album.starred);
+        if (album.artist) {
+          getArtistImage(album.artist)
+            .then(url => { if (url) setArtistImageUrl(url); })
+            .catch(() => {});
+        }
       })
       .catch(e => console.warn('getAlbum error', e))
       .finally(() => setLoading(false));
   }, [albumId]);
-
-  const showToast = useCallback((msg: string) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToastMessage(msg);
-    setToastVisible(true);
-    toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
-  }, []);
 
   const handleToggleStar = useCallback(async () => {
     const next = !isStarred;
@@ -252,7 +305,7 @@ export default function AlbumDetailScreen() {
     } catch {
       setIsStarred(!next);
     }
-  }, [isStarred, albumId, showToast]);
+  }, [isStarred, albumId]);
 
   const handlePlay = useCallback(async () => {
     setLoadingAlbum(true);
@@ -282,23 +335,63 @@ export default function AlbumDetailScreen() {
     await loadAndPlayTracks(tracks, startIndex);
   }, [songs, albumName, coverArtId]);
 
+  const handleSongMore = useCallback((song: SubsonicSong) => {
+    setSelectedSong(song);
+    setSongOptsVisible(true);
+  }, []);
+
+  const handleArtistPress = useCallback(() => {
+    if (artistId || artistName) {
+      navigation.navigate('ArtistDetail', {artistId, artistName});
+    }
+  }, [navigation, artistId, artistName]);
+
+  const handleAlbumAddToQueue = useCallback(async () => {
+    if (!songs.length) return;
+    try {
+      const idx = await TrackPlayer.getActiveTrackIndex();
+      const insertAt = idx != null ? idx + 1 : undefined;
+      const rnTracks = songs.map(s => ({
+        id: String(s.id),
+        url: getStreamUrl(String(s.id)),
+        title: s.title,
+        artist: s.artist,
+        artwork: getCoverArtUrl(s.coverArt || String(s.id), 300),
+        coverArt: s.coverArt,
+        album: s.album || albumName,
+        duration: s.duration,
+      }));
+      await TrackPlayer.add(rnTracks, insertAt);
+      await syncUpcomingFromRNTP();
+      showToast(getT().playlistOptions.queuedToast(songs.length));
+    } catch {
+      showToast(getT().playlistOptions.queueError);
+    }
+  }, [songs, albumName]);
+
   const renderItem = useCallback(({item, index}: {item: SubsonicSong, index: number}) => (
-    <SongRow 
-      song={item} 
-      isActive={currentTrackId === item.id} 
-      index={index + 1} 
-      onPress={() => handlePlayTrack(index)} 
+    <SongRow
+      song={item}
+      isActive={currentTrackId === item.id}
+      index={index + 1}
+      onPress={() => handlePlayTrack(index)}
+      onMore={() => handleSongMore(item)}
+      onAddToPlaylist={() => { setAddToPlaylistSong(item); setAddToPlaylistVisible(true); }}
     />
-  ), [currentTrackId, handlePlayTrack]);
+  ), [currentTrackId, handlePlayTrack, handleSongMore]);
+
+  const trackIds = useMemo(() => songs.map(s => String(s.id)), [songs]);
 
   const listHeader = useMemo(() => (
     <AlbumHeader
-      topBarH={topBarH} coverArtId={coverArtId} albumName={albumName} artistName={artistName} year={year}
+      topBarH={topBarH} coverArtId={coverArtId} albumName={albumName} artistName={artistName}
+      artistImageUrl={artistImageUrl} year={year}
       isShuffled={isShuffled} isStarred={isStarred} loadingAlbum={loadingAlbum}
       coverScale={coverScale} coverTranslateY={coverTranslateY}
       onPlay={handlePlay} onShuffle={toggleShuffle} onToggleStar={handleToggleStar}
+      onArtistPress={handleArtistPress} onMorePress={() => setAlbumOptsVisible(true)}
     />
-  ), [topBarH, coverArtId, albumName, artistName, year, isShuffled, isStarred, loadingAlbum, coverScale, coverTranslateY, handlePlay, toggleShuffle, handleToggleStar]);
+  ), [topBarH, coverArtId, albumName, artistName, artistImageUrl, year, isShuffled, isStarred, loadingAlbum, coverScale, coverTranslateY, handlePlay, toggleShuffle, handleToggleStar, handleArtistPress]);
 
   return (
     <View style={styles.root}>
@@ -323,12 +416,42 @@ export default function AlbumDetailScreen() {
       <View style={[styles.topBar, {paddingTop: insets.top}]} pointerEvents="box-none">
         <View style={styles.topBarInner}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <BackIcon size={24} />
+            <BackArrowIcon size={24} />
           </TouchableOpacity>
         </View>
       </View>
 
-      <Toast visible={toastVisible} message={toastMessage} />
+      <SongOptionsSheet
+        visible={songOptsVisible}
+        onClose={() => setSongOptsVisible(false)}
+        track={selectedSong}
+        onToast={showToast}
+        onNavigateAlbum={(id) => navigation.navigate('AlbumDetail', {albumId: id})}
+        onNavigateArtist={(id, name) => {
+          navigation.navigate('ArtistDetail', {artistId: id, artistName: name});
+        }}
+      />
+
+      <AlbumOptionsSheet
+        visible={albumOptsVisible}
+        onClose={() => setAlbumOptsVisible(false)}
+        albumName={albumName}
+        coverArtId={coverArtId}
+        isStarred={isStarred}
+        onToggleStar={handleToggleStar}
+        onGoToArtist={artistId ? handleArtistPress : undefined}
+        onAddToQueue={handleAlbumAddToQueue}
+        trackIds={trackIds}
+        onToast={showToast}
+      />
+
+      <AddToPlaylistSheet
+        visible={addToPlaylistVisible}
+        onClose={() => setAddToPlaylistVisible(false)}
+        trackId={addToPlaylistSong ? String(addToPlaylistSong.id) : undefined}
+        trackTitle={addToPlaylistSong?.title}
+        onToast={showToast}
+      />
     </View>
   );
 }
@@ -337,6 +460,7 @@ export default function AlbumDetailScreen() {
 const styles = StyleSheet.create({
   coverPlaceholder: {width: COVER_SIZE, height: COVER_SIZE, backgroundColor: '#333', borderRadius: 8},
   artistAvatarText: {color: '#fff', fontSize: 10, fontWeight: '700'},
+  artistAvatarImg: {width: 24, height: 24, borderRadius: 12},
   root: { flex: 1, backgroundColor: darkTheme.background },
   bgGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: SCREEN_H * 0.62 },
   topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20 },
@@ -348,20 +472,21 @@ const styles = StyleSheet.create({
   meta: { paddingHorizontal: 16, marginBottom: 6 },
   albumName: { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -0.5, marginBottom: 8 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  artistAvatar: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#555', alignItems: 'center', justifyContent: 'center' },
+  artistAvatar: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#555', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   metaArtist: { fontSize: 16, fontWeight: '700', color: '#fff' },
   metaSub: { fontSize: 13, color: '#aaa' },
   actionsRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginTop: 10, marginBottom: 14 },
   actionsLeft: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   actionsRight: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 16 },
   actionBtn: { padding: 10 },
-  playBtn: { width: 58, height: 58, borderRadius: 29, backgroundColor: darkTheme.accent, alignItems: 'center', justifyContent: 'center', shadowColor: darkTheme.accent, shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.5, shadowRadius: 8, elevation: 8 },
-  songRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
-  songIndexWrap: { width: 28, alignItems: 'center' },
+  playBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: darkTheme.accent, alignItems: 'center', justifyContent: 'center' },
+  songRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 10, paddingRight: 12, paddingVertical: 12, gap: 8 },
+  songIndexWrap: { width: 16, alignItems: 'center' },
   songIndex: { color: '#888', fontSize: 14, fontWeight: '600' },
   songInfo: { flex: 1 },
   songTitle: { fontSize: 16, fontWeight: '500', color: '#fff' },
   songArtist: { fontSize: 13, color: '#aaa', marginTop: 3 },
+  songActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   songDots: { padding: 8 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

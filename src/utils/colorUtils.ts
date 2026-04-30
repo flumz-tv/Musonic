@@ -1,3 +1,11 @@
+/**
+ * @file colorUtils.ts
+ * @description Pure colour utility functions: hex blending and deterministic
+ *   ID-to-colour mapping used as fallback backgrounds before artwork loads.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 export function blendWithBlack(hex: string, factor = 0.5): string {
   const clean = hex.replace('#', '');
   if (clean.length !== 6) return '#282828';

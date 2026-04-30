@@ -1,40 +1,55 @@
+/**
+ * @file search.ts
+ * @description Search API endpoints. Returns Subsonic results immediately and
+ *   enriches artist rows asynchronously with Deezer images (session-cached).
+ *   The two operations are intentionally decoupled to keep search feel instant.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import {subsonicGet, getCoverArtUrl} from '../client';
 import type {SubsonicSearchResult} from '../types';
 
-// ─── Deezer image enrichment ───────────────────────────────────────────────
-async function getDeezerArtistImage(artistName: string): Promise<string | undefined> {
+// Session-scoped Deezer image cache — keyed by artist name
+const deezerCache = new Map<string, string | null>();
+
+export async function getDeezerArtistImageCached(artistName: string): Promise<string | null> {
+  if (deezerCache.has(artistName)) return deezerCache.get(artistName)!;
   try {
     const res = await fetch(`https://api.deezer.com/search/artist?q=${encodeURIComponent(artistName)}`);
     const json = await res.json();
-    if (json.data && json.data.length > 0) {
-      return json.data[0].picture_xl || json.data[0].picture_medium;
-    }
+    const url: string | null = json.data?.[0]?.picture_xl || json.data?.[0]?.picture_medium || null;
+    deezerCache.set(artistName, url);
+    return url;
   } catch {
-    // non-critical enrichment failure
+    deezerCache.set(artistName, null);
+    return null;
   }
-  return undefined;
 }
 
-// ─── Main search function ──────────────────────────────────────────────────
-export async function search(query: string, artistCount = 10, albumCount = 15, songCount = 20): Promise<SubsonicSearchResult> {
+export async function search(query: string): Promise<SubsonicSearchResult> {
   try {
     const res = await subsonicGet<any>('search3.view', {
       query,
-      artistCount,
-      albumCount,
-      songCount,
+      artistCount: 20,
+      albumCount: 40,
+      songCount: 80,
     });
 
     const searchData = res.searchResult3 || res.searchResult2 || res.searchResult || {};
 
-    // Deduplicate by ID before enriching
     const seenArtists = new Set<string>();
-    const rawArtists: any[] = (searchData.artist || []).filter((a: any) => {
-      const id = String(a.id);
-      if (seenArtists.has(id)) return false;
-      seenArtists.add(id);
-      return true;
-    });
+    const artists = (searchData.artist || [])
+      .filter((a: any) => {
+        const id = String(a.id);
+        if (seenArtists.has(id)) return false;
+        seenArtists.add(id);
+        return true;
+      })
+      .map((a: any) => ({
+        ...a,
+        artistImageUrl: a.coverArt ? getCoverArtUrl(a.coverArt, 300) : undefined,
+      }));
 
     const seenAlbums = new Set<string>();
     const albums = (searchData.album || []).filter((a: any) => {
@@ -52,21 +67,8 @@ export async function search(query: string, artistCount = 10, albumCount = 15, s
       return true;
     });
 
-    const artists = await Promise.all(rawArtists.map(async (artist: any) => {
-      if (artist.coverArt) {
-        artist.artistImageUrl = getCoverArtUrl(artist.coverArt, 300);
-      } else {
-        const deezerImg = await getDeezerArtistImage(artist.name);
-        if (deezerImg) {
-          artist.artistImageUrl = deezerImg;
-        }
-      }
-      return artist;
-    }));
-
     return {artists, albums, songs};
-  } catch (error) {
-    console.log('[search] error:', error);
+  } catch {
     return {artists: [], albums: [], songs: []};
   }
 }

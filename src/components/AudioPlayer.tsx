@@ -1,3 +1,12 @@
+/**
+ * @file AudioPlayer.tsx
+ * @description Null-render RNTP event bridge. Mounts once in App.tsx and syncs
+ *   RNTP playback events (track change, queue updates) into playerStore so the
+ *   rest of the UI stays reactive without subscribing to RNTP directly.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import TrackPlayer, {Event, useTrackPlayerEvents} from 'react-native-track-player';
 import {usePlayerStore} from '../store/playerStore';
 import type {Track} from '../store/playerStore';

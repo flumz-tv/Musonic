@@ -1,18 +1,33 @@
+/**
+ * @file CoverArt.tsx
+ * @description FastImage wrapper for Subsonic cover art. Resolves the cover URL
+ *   from a track/album ID and shows a dark placeholder while loading.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React from 'react';
 import {View, StyleSheet} from 'react-native';
 import FastImage from '@d11/react-native-fast-image';
 import {getCoverArtUrl} from '../api/client';
 import {darkTheme} from '../theme';
+import {storage} from '../store/storage';
 
 type Props = {
   id?: string;
   size: number;
   borderRadius?: number;
   imageUrl?: string;
+  playlistId?: string;
 };
 
-export default function CoverArt({id, size, borderRadius = 4, imageUrl}: Props) {
-  const uri = imageUrl ?? (id ? getCoverArtUrl(id, size * 2) : null);
+function getLocalPlaylistCover(playlistId: string): string | null {
+  return storage.getString(`coverart_pl_${playlistId}`) ?? null;
+}
+
+export default function CoverArt({id, size, borderRadius = 4, imageUrl, playlistId}: Props) {
+  const localUri = playlistId ? getLocalPlaylistCover(playlistId) : null;
+  const uri = localUri ?? imageUrl ?? (id ? getCoverArtUrl(id, size * 2) : null);
 
   return (
     <View

@@ -1,9 +1,18 @@
+/**
+ * @file TabNavigator.tsx
+ * @description Bottom tab navigator with three tabs: Home, Search, Library.
+ *   Each tab hosts its own stack so deep-link screens (AlbumDetail, ArtistDetail)
+ *   are reachable from any tab without cross-stack navigation.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React from 'react';
 import {StyleSheet, View} from 'react-native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import LinearGradient from 'react-native-linear-gradient';
 import {useT} from '../i18n';
-import HomeScreen from '../screens/Home';
+import HomeStack from './HomeStack';
 import SearchStack from './SearchStack';
 import LibraryStack from './LibraryStack';
 import HomeIcon from '../components/icons/HomeIcon';
@@ -14,6 +23,7 @@ import FullScreenPlayer from '../components/FullScreenPlayer';
 import AudioPlayer from '../components/AudioPlayer';
 import OfflineBanner from '../components/OfflineBanner';
 import ConnectivityMonitor from '../components/ConnectivityMonitor';
+import {GlobalToast} from '../components/Toast';
 import {useImageColor} from '../hooks/useImageColor';
 
 const Tab = createBottomTabNavigator();
@@ -58,7 +68,7 @@ export default function TabNavigator() {
         }}>
         <Tab.Screen
           name="Home"
-          component={HomeScreen}
+          component={HomeStack}
           options={{
             tabBarLabel: t.tabs.home,
             tabBarIcon: HomeTabIcon,
@@ -107,6 +117,7 @@ export default function TabNavigator() {
       <MiniPlayer />
       <FullScreenPlayer />
       <OfflineBanner />
+      <GlobalToast />
     </View>
   );
 }

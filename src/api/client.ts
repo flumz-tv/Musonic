@@ -1,3 +1,13 @@
+/**
+ * @file client.ts
+ * @description Subsonic API client. Configures the axios instance with server
+ *   credentials, builds authenticated request URLs, and exposes helpers for
+ *   stream/cover-art URLs. All requests are made against the active server stored
+ *   in settingsStore.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import axios from 'axios';
 import qs from 'qs';
 import type {Server} from '../store/settingsStore';

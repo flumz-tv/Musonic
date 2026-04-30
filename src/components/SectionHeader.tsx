@@ -1,3 +1,11 @@
+/**
+ * @file SectionHeader.tsx
+ * @description Section title row with an optional "See all" action link.
+ *   Used in horizontal scroll sections on the Home screen.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React from 'react';
 import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
 import {darkTheme} from '../theme';

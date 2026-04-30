@@ -4,7 +4,7 @@
  *   username and password, validates credentials against the Subsonic API, and
  *   persists the server configuration via settingsStore.
  * @author DoodzProg
- * @version 0.9.0
+ * @version 0.9.1
  * @license MIT
  */
 

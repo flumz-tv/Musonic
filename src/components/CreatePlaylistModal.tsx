@@ -1,3 +1,11 @@
+/**
+ * @file CreatePlaylistModal.tsx
+ * @description Modal for creating a new playlist. Accepts a name input and calls
+ *   the Subsonic createPlaylist endpoint on confirm.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React, {useState} from 'react';
 import {
   KeyboardAvoidingView,

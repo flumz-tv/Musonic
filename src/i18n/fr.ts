@@ -1,3 +1,12 @@
+/**
+ * @file fr.ts
+ * @description French UI strings — single source of truth for all user-visible text.
+ *   Add keys here first, then mirror them in en.ts. The i18n/index.ts hook
+ *   selects the active locale based on settingsStore.language.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 // French UI strings — single source of truth for all user-visible text.
 // Swap this import for another locale file to add a new language.
 export const t = {
@@ -56,6 +65,8 @@ export const t = {
     unknownTitle: 'Titre inconnu',
     unknownArtist: 'Artiste inconnu',
     loadError: 'Impossible de charger la page d\'accueil',
+    typeSingle: 'Titre',
+    typeAlbum: 'Album',
     filters: {
       all: 'Tout',
       recent: 'Récent',
@@ -77,6 +88,8 @@ export const t = {
     placeholder: 'Que souhaitez-vous écouter ?',
     browseAll: 'Parcourir tout',
     trackType: 'Titre',
+    artistType: 'Artiste',
+    albumType: 'Album',
     noResults: (q: string) => `Aucun résultat pour "${q}"`,
     sections: {
       songs: 'Titres',
@@ -119,10 +132,11 @@ export const t = {
     contextLabel: 'LECTURE À PARTIR DE PLAYLIST',
     searchPlaceholder: 'Rechercher sur cette page',
     pills: {
-      add: '+ Ajouter',
-      mix: 'Mixer',
       edit: 'Modifier',
+      sort: 'Trier',
+      info: 'Nom et informations',
     },
+    comingSoon: 'Bientôt disponible',
     editHeader: 'Modifier la playlist',
     saveButton: 'Sauvegarder',
     savedToast: 'Playlist mise à jour',
@@ -142,6 +156,9 @@ export const t = {
     goToArtist: "Accéder à l'artiste",
     addedToQueue: "Ajouté à la file d'attente",
     removedFromPlaylist: 'Titre supprimé de la playlist',
+    addToLiked: 'Ajouter aux titres likés',
+    removeFromLiked: 'Supprimer des titres likés',
+    manageInPlaylists: 'Gérer dans mes playlists',
     addError: "Erreur lors de l'ajout",
     removeError: 'Erreur lors de la suppression',
   },
@@ -170,6 +187,12 @@ export const t = {
     renameError: 'Erreur lors du renommage',
     deleteError: 'Erreur lors de la suppression',
     comingSoon: 'Bientôt disponible',
+    editPlaylist: 'Modifier la playlist',
+    nameAndInfo: 'Nom et informations',
+    editCover: 'Modifier la pochette',
+    addAllToPlaylist: 'Ajouter à une autre playlist',
+    addedAllToPlaylist: (n: number, name: string) => `${n} titre${n !== 1 ? 's' : ''} ajouté${n !== 1 ? 's' : ''} dans ${name}`,
+    addToPlaylistError: "Erreur lors de l'ajout à la playlist",
   },
 
   // ─── Rename Modal ──────────────────────────────────────────────────────────
@@ -177,6 +200,28 @@ export const t = {
     title: 'Renommer la playlist',
     cancelButton: 'Annuler',
     confirmButton: 'Renommer',
+  },
+
+  // ─── Playlist Info Modal ──────────────────────────────────────────────────
+  playlistInfo: {
+    title: 'Nom et informations',
+    cancel: 'Annuler',
+    save: 'Sauvegarder',
+    nameLabel: 'Titre de la playlist',
+    namePlaceholder: 'Nom de la playlist',
+    descriptionPlaceholder: 'Description (optionnelle)',
+    deletePlaylist: 'Supprimer la playlist',
+    deleteTitle: 'Supprimer la playlist ?',
+    deleteMessage: (name: string) => `Voulez-vous vraiment supprimer "${name}" ?`,
+    deleteConfirm: 'Supprimer',
+    deleteCancel: 'Annuler',
+    saved: 'Informations sauvegardées',
+    saveError: 'Erreur lors de la sauvegarde',
+    coverTitle: 'Pochette',
+    resetCover: 'Remettre par défaut',
+    editCover: 'Modifier la pochette',
+    coverChanged: 'Pochette modifiée',
+    coverReset: 'Pochette réinitialisée',
   },
 
   // ─── Add to Playlist Sheet ─────────────────────────────────────────────────
@@ -249,16 +294,15 @@ export const t = {
       waveform: 'Onde Sonore',
     },
     transitions: {
-      crossfadeLabel: 'Fondu enchaîné',
-      crossfadeDesc:
-        'Ajustez la durée du fondu et de la superposition entre les titres.',
+      crossfadeLabel: 'Fondu entre les titres',
+      crossfadeDesc: 'Baisse le volume en fin de titre et remonte en début du suivant.',
     },
     playback: {
       monoLabel: 'Contenu audio mono',
       monoDesc: 'Les enceintes gauche et droite diffusent le même contenu audio.',
     },
     display: {
-      lockRotationLabel: 'Verrouiller la rotation',
+      lockRotationLabel: "Verrouiller la rotation de l'écran",
       lockRotationDesc:
         "Force l'affichage en portrait, même si le téléphone est penché.",
     },
@@ -283,6 +327,8 @@ export const t = {
     unknownAlbum: 'Album inconnu',
     addedToLibrary: 'Album ajouté à la bibliothèque',
     removedFromLibrary: 'Album retiré de la bibliothèque',
+    addToLibrary: 'Ajouter à la bibliothèque',
+    removeFromLibraryAction: 'Retirer de la bibliothèque',
   },
 
 } as const;

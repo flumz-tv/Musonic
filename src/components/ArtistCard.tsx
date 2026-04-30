@@ -1,3 +1,11 @@
+/**
+ * @file ArtistCard.tsx
+ * @description Circular artist card for horizontal scroll lists (Home Discover
+ *   section). Shows artist photo or initials fallback.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React from 'react';
 import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
 import FastImage from '@d11/react-native-fast-image';

@@ -1,3 +1,11 @@
+/**
+ * @file storage.ts
+ * @description MMKV-backed Zustand StateStorage adapter. All persisted stores
+ *   share this single MMKV instance to avoid duplicate initialisation overhead.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import {MMKV} from 'react-native-mmkv';
 import {StateStorage} from 'zustand/middleware';
 

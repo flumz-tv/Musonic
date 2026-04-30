@@ -1,3 +1,12 @@
+/**
+ * @file WaveformScrubber.tsx
+ * @description Animated waveform progress bar for the full-screen player.
+ *   Renders 45 SVG bars with overflow-hidden masking to show playback progress
+ *   without a position-update loop.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React, {useMemo, useState} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import Svg, {Defs, G, Line, LinearGradient, Mask, Rect, Stop} from 'react-native-svg';

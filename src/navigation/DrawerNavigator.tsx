@@ -1,3 +1,12 @@
+/**
+ * @file DrawerNavigator.tsx
+ * @description Drawer navigator shell. Wraps the main tab navigator inside a
+ *   @react-navigation/drawer so the custom slide-in panel can be triggered from
+ *   any screen via DrawerContainer context.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React from 'react';
 import {StyleSheet} from 'react-native';
 import {createDrawerNavigator} from '@react-navigation/drawer';

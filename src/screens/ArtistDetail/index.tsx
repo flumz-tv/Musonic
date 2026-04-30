@@ -3,7 +3,7 @@
  * @description Artist detail screen. Shows artist biography, top songs, and album
  *   discography fetched from the Subsonic API.
  * @author DoodzProg
- * @version 0.9.0
+ * @version 0.9.1
  * @license MIT
  */
 

@@ -4,7 +4,7 @@
  *   global providers (SafeArea, GestureHandler), the audio player setup, and
  *   app-wide overlays (OfflineBanner, LikeRetryManager).
  * @author DoodzProg
- * @version 0.9.0
+ * @version 0.9.1
  * @license MIT
  */
 
@@ -18,6 +18,7 @@ import {darkTheme} from './src/theme';
 import {useSetupPlayer} from './src/hooks/useSetupPlayer';
 import OfflineBanner from './src/components/OfflineBanner';
 import LikeRetryManager from './src/components/LikeRetryManager';
+import PlaylistCacheManager from './src/components/PlaylistCacheManager';
 
 export default function App() {
   useSetupPlayer();
@@ -34,6 +35,7 @@ export default function App() {
           </NavigationContainer>
           <OfflineBanner />
           <LikeRetryManager />
+          <PlaylistCacheManager />
         </View>
       </SafeAreaProvider>
     </GestureHandlerRootView>

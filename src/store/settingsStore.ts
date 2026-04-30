@@ -1,3 +1,13 @@
+/**
+ * @file settingsStore.ts
+ * @description Zustand + MMKV store for user preferences: server credentials,
+ *   language, waveform display, crossfade, mono audio, and rotation lock.
+ *   Persisted across restarts; consumed by RootNavigator to gate the server-setup
+ *   flow.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import {create} from 'zustand';
 import {persist, createJSONStorage} from 'zustand/middleware';
 import {mmkvStorage} from './storage';
@@ -52,7 +62,7 @@ export const useSettingsStore = create<SettingsState>()(
         set(state => ({servers: state.servers.filter(s => s.id !== id)})),
       setActiveServer: id => set({activeServerId: id}),
       disconnectServer: () => set({activeServerId: null}),
-      locale: 'fr',
+      locale: 'en',
       setLocale: locale => set({locale}),
       useWaveformScrubber: false,
       setUseWaveformScrubber: use => set({useWaveformScrubber: use}),

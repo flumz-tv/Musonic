@@ -1,3 +1,11 @@
+/**
+ * @file AddToPlaylistSheet.tsx
+ * @description Bottom sheet for adding one or more tracks to existing playlists
+ *   or creating a new one. Updates the playlist membership cache on success.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
@@ -16,6 +24,7 @@ import {
 import Svg, {Circle, Path} from 'react-native-svg';
 import CoverArt from './CoverArt';
 import {usePlayerStore} from '../store/playerStore';
+import {usePlaylistCacheStore} from '../store/playlistCacheStore';
 import {useT, getT} from '../i18n';
 import {
   getPlaylists,
@@ -39,6 +48,7 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   trackId?: string;
+  trackIds?: string[];
   trackTitle?: string;
   onToast: (message: string) => void;
 };
@@ -120,6 +130,7 @@ export default function AddToPlaylistSheet({
   visible,
   onClose,
   trackId,
+  trackIds,
   trackTitle,
   onToast,
 }: Props) {
@@ -134,40 +145,37 @@ export default function AddToPlaylistSheet({
 
   const bumpPlaylistVersion = usePlayerStore(s => s.bumpPlaylistVersion);
   const setPlaylistSong = usePlayerStore(s => s.setPlaylistSong);
+  const {addTracks: cacheAdd, removeTrack: cacheRemove} = usePlaylistCacheStore();
+
+  const isMultiMode = !!(trackIds?.length);
 
   const loadPlaylists = useCallback(async () => {
-    if (!trackId) return;
+    if (!trackId && !isMultiMode) return;
     setLoading(true);
     try {
       const raw = await getPlaylists();
-      const items = await Promise.all(
-        raw.map(async p => {
-          try {
-            const {songs} = await getPlaylist(p.id);
-            const idx = songs.findIndex(
-              s => String(s.id) === String(trackId),
-            );
-            return {
-              ...p,
-              containsTrack: idx !== -1,
-              trackIndex: idx,
-            } as PlaylistItem;
-          } catch {
-            return {
-              ...p,
-              containsTrack: false,
-              trackIndex: -1,
-            } as PlaylistItem;
-          }
-        }),
-      );
-      setPlaylists(items);
+      if (isMultiMode) {
+        setPlaylists(raw.map(p => ({...p, containsTrack: false, trackIndex: -1})));
+      } else {
+        const items = await Promise.all(
+          raw.map(async p => {
+            try {
+              const {songs} = await getPlaylist(p.id);
+              const idx = songs.findIndex(s => String(s.id) === String(trackId));
+              return {...p, containsTrack: idx !== -1, trackIndex: idx} as PlaylistItem;
+            } catch {
+              return {...p, containsTrack: false, trackIndex: -1} as PlaylistItem;
+            }
+          }),
+        );
+        setPlaylists(items);
+      }
     } catch (e) {
       console.warn('[AddToPlaylistSheet] load error', e);
     } finally {
       setLoading(false);
     }
-  }, [trackId]);
+  }, [trackId, isMultiMode]);
 
   useEffect(() => {
     if (visible) {
@@ -228,7 +236,10 @@ export default function AddToPlaylistSheet({
             const stillInAny = playlists.some(
               p => p.id !== item.id && p.containsTrack,
             );
-            if (trackId) setPlaylistSong(trackId, stillInAny);
+            if (trackId) {
+              setPlaylistSong(trackId, stillInAny);
+              if (!stillInAny) cacheRemove(trackId);
+            }
           }
         } catch (e) {
           // Revert
@@ -269,7 +280,7 @@ export default function AddToPlaylistSheet({
         try {
           await updatePlaylist(item.id, undefined, [String(trackId)]);
           bumpPlaylistVersion();
-          if (trackId) setPlaylistSong(trackId, true);
+          if (trackId) { setPlaylistSong(trackId, true); cacheAdd([trackId]); }
         } catch (e) {
           // Revert
           setPlaylists(prev =>
@@ -292,7 +303,23 @@ export default function AddToPlaylistSheet({
         }
       }
     },
-    [trackId, onToast, bumpPlaylistVersion, setPlaylistSong, playlists],
+    [trackId, onToast, bumpPlaylistVersion, setPlaylistSong, playlists, cacheAdd, cacheRemove],
+  );
+
+  const handleAddAllToPlaylist = useCallback(
+    async (item: PlaylistItem) => {
+      if (!trackIds?.length) return;
+      onClose();
+      try {
+        await updatePlaylist(item.id, undefined, trackIds.map(String));
+        bumpPlaylistVersion();
+        cacheAdd(trackIds.map(String));
+        onToast(getT().playlistOptions.addedAllToPlaylist(trackIds.length, item.name));
+      } catch {
+        onToast(getT().playlistOptions.addToPlaylistError);
+      }
+    },
+    [trackIds, onClose, onToast, bumpPlaylistVersion, cacheAdd],
   );
 
   const handleCreate = useCallback(
@@ -303,6 +330,7 @@ export default function AddToPlaylistSheet({
       try {
         await createPlaylist(name, [String(trackId)]);
         setPlaylistSong(trackId, true);
+        cacheAdd([trackId]);
         onToast(getT().addToPlaylist.addedTo(name));
         bumpPlaylistVersion();
       } catch (e) {
@@ -310,7 +338,7 @@ export default function AddToPlaylistSheet({
         console.warn('[AddToPlaylistSheet] create error:', msg);
       }
     },
-    [trackId, onClose, onToast, setPlaylistSong, bumpPlaylistVersion],
+    [trackId, onClose, onToast, setPlaylistSong, bumpPlaylistVersion, cacheAdd],
   );
 
   const handlePanResponder = useRef(
@@ -417,7 +445,7 @@ export default function AddToPlaylistSheet({
 
               {/* Active playlists (contains track) */}
               {active.map(item => (
-                <PlaylistRow key={item.id} item={item} onToggle={handleToggle} />
+                <PlaylistRow key={item.id} item={item} onToggle={isMultiMode ? handleAddAllToPlaylist : handleToggle} />
               ))}
 
               {/* Divider between active and others */}
@@ -442,7 +470,7 @@ export default function AddToPlaylistSheet({
 
               {/* Other playlists */}
               {others.map(item => (
-                <PlaylistRow key={item.id} item={item} onToggle={handleToggle} />
+                <PlaylistRow key={item.id} item={item} onToggle={isMultiMode ? handleAddAllToPlaylist : handleToggle} />
               ))}
 
               {/* Footer: create new playlist */}

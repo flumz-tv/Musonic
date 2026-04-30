@@ -1,3 +1,10 @@
+/**
+ * @file HomeIcon.tsx
+ * @description SVG home icon for the bottom tab navigator.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React from 'react';
 import Svg, {Path} from 'react-native-svg';
 

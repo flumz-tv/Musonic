@@ -1,3 +1,12 @@
+/**
+ * @file playerActions.ts
+ * @description Imperative playback action helpers used across screens. All
+ *   queue-loading functions resolve `currentPlaylistId` so the orange active-track
+ *   indicator in PlaylistDetail stays accurate regardless of play context.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import TrackPlayer from 'react-native-track-player';
 import {getPlaylist} from '../api/endpoints/playlists';
 import {getStreamUrl, getCoverArtUrl, subsonicGet} from '../api/client';
@@ -119,10 +128,15 @@ export function playTrack(track: Track): void {
 export async function loadAndPlayTracks(
   tracks: Track[],
   startIndex: number = 0,
+  playlistContext?: {id: string; name: string},
 ): Promise<void> {
   if (tracks.length === 0) return;
   const idx = Math.max(0, Math.min(startIndex, tracks.length - 1));
   const store = usePlayerStore.getState();
+  // Always resolve playlist context: set provided one, or clear it.
+  // This prevents orange-highlight bleed when playing from a non-playlist context
+  // (album, liked songs, search) while a playlist screen is still visible.
+  store.setCurrentPlaylist(playlistContext?.id ?? null, playlistContext?.name ?? null);
   store.setQueue(tracks);
   store.setHistory(tracks.slice(0, idx));
   store.setUpcoming(tracks.slice(idx + 1));

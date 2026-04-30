@@ -3,7 +3,7 @@
  * @description Settings screen. Language picker, player style (classic / waveform),
  *   crossfade duration, mono audio toggle, and screen rotation lock.
  * @author DoodzProg
- * @version 0.9.0
+ * @version 0.9.1
  * @license MIT
  */
 
@@ -99,14 +99,6 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>{t.settings.language.sectionTitle}</Text>
         <View style={styles.languagePicker}>
           <TouchableOpacity
-            style={[styles.langPill, locale === 'fr' && styles.langPillActive]}
-            onPress={() => setLocale('fr')}
-            activeOpacity={0.8}>
-            <Text style={[styles.langPillText, locale === 'fr' && styles.langPillTextActive]}>
-              Français
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
             style={[styles.langPill, locale === 'en' && styles.langPillActive]}
             onPress={() => setLocale('en')}
             activeOpacity={0.8}>
@@ -114,10 +106,15 @@ export default function SettingsScreen() {
               English
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.langPill, locale === 'fr' && styles.langPillActive]}
+            onPress={() => setLocale('fr')}
+            activeOpacity={0.8}>
+            <Text style={[styles.langPillText, locale === 'fr' && styles.langPillTextActive]}>
+              Français
+            </Text>
+          </TouchableOpacity>
         </View>
-
-        {/* Player section */}
-        <Text style={styles.sectionTitle}>{t.settings.sections.player}</Text>
 
         <View style={styles.settingRow}>
           <View style={styles.textBlock}>
@@ -164,9 +161,6 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Transitions section */}
-        <Text style={styles.sectionTitle}>{t.settings.sections.transitions}</Text>
-
         <View style={styles.settingRow}>
           <View style={styles.textBlock}>
             <Text style={styles.settingLabel}>{t.settings.transitions.crossfadeLabel}</Text>
@@ -198,9 +192,6 @@ export default function SettingsScreen() {
 
           <Text style={styles.sliderText}>12 s</Text>
         </View>
-
-        {/* Playback section */}
-        <Text style={styles.sectionTitle}>{t.settings.sections.playback}</Text>
 
         <View style={styles.settingRow}>
           <View style={styles.textBlock}>

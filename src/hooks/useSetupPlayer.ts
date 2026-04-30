@@ -1,3 +1,12 @@
+/**
+ * @file useSetupPlayer.ts
+ * @description Hook that initialises react-native-track-player once on app mount:
+ *   calls setupPlayer, configures capabilities (play, pause, skip, seek, like),
+ *   and registers notification/lock-screen options.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import {useEffect, useRef} from 'react';
 import TrackPlayer, {
   AppKilledPlaybackBehavior,

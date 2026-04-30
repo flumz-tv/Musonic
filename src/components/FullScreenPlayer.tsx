@@ -1,3 +1,12 @@
+/**
+ * @file FullScreenPlayer.tsx
+ * @description Full-screen music player. Ambient halo background (blurred cover),
+ *   3-slot cover carousel with swipe gesture, waveform scrubber, playback
+ *   controls, lyrics preview, and queue access.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Animated,

@@ -1,3 +1,12 @@
+/**
+ * @file connectivityService.ts
+ * @description Background polling service that pings the active Subsonic server
+ *   every 15 s and updates networkStore.isOffline. Used by ConnectivityMonitor
+ *   and the Home screen auto-recovery logic.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import {getActiveServer, pingServer} from '../api/client';
 import {useNetworkStore} from '../store/networkStore';
 

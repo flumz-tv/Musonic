@@ -1,3 +1,11 @@
+/**
+ * @file en.ts
+ * @description English UI strings. Mirrors the structure of fr.ts exactly.
+ *   Swap the active locale in i18n/index.ts to enable English.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 export const en = {
 
   // ─── Common ────────────────────────────────────────────────────────────────
@@ -54,6 +62,8 @@ export const en = {
     unknownTitle: 'Unknown title',
     unknownArtist: 'Unknown artist',
     loadError: 'Could not load home',
+    typeSingle: 'Single',
+    typeAlbum: 'Album',
     filters: {
       all: 'All',
       recent: 'Recent',
@@ -75,6 +85,8 @@ export const en = {
     placeholder: 'What do you want to listen to?',
     browseAll: 'Browse all',
     trackType: 'Track',
+    artistType: 'Artist',
+    albumType: 'Album',
     noResults: (q: string) => `No results for "${q}"`,
     sections: {
       songs: 'Songs',
@@ -116,10 +128,11 @@ export const en = {
     contextLabel: 'PLAYING FROM PLAYLIST',
     searchPlaceholder: 'Search this page',
     pills: {
-      add: '+ Add',
-      mix: 'Mix',
       edit: 'Edit',
+      sort: 'Sort',
+      info: 'Name & info',
     },
+    comingSoon: 'Coming soon',
     editHeader: 'Edit playlist',
     saveButton: 'Save',
     savedToast: 'Playlist updated',
@@ -139,6 +152,9 @@ export const en = {
     goToArtist: 'Go to artist',
     addedToQueue: 'Added to queue',
     removedFromPlaylist: 'Removed from playlist',
+    addToLiked: 'Add to Liked Songs',
+    removeFromLiked: 'Remove from Liked Songs',
+    manageInPlaylists: 'Manage in playlists',
     addError: 'Error adding track',
     removeError: 'Error removing track',
   },
@@ -166,6 +182,12 @@ export const en = {
     renameError: 'Error renaming playlist',
     deleteError: 'Error deleting playlist',
     comingSoon: 'Coming soon',
+    editPlaylist: 'Edit playlist',
+    nameAndInfo: 'Name & info',
+    editCover: 'Edit cover',
+    addAllToPlaylist: 'Add to another playlist',
+    addedAllToPlaylist: (n: number, name: string) => `${n} song${n !== 1 ? 's' : ''} added to ${name}`,
+    addToPlaylistError: 'Error adding to playlist',
   },
 
   // ─── Rename Modal ──────────────────────────────────────────────────────────
@@ -173,6 +195,28 @@ export const en = {
     title: 'Rename playlist',
     cancelButton: 'Cancel',
     confirmButton: 'Rename',
+  },
+
+  // ─── Playlist Info Modal ──────────────────────────────────────────────────
+  playlistInfo: {
+    title: 'Name & info',
+    cancel: 'Cancel',
+    save: 'Save',
+    nameLabel: 'Playlist title',
+    namePlaceholder: 'Playlist name',
+    descriptionPlaceholder: 'Description (optional)',
+    deletePlaylist: 'Delete playlist',
+    deleteTitle: 'Delete playlist?',
+    deleteMessage: (name: string) => `Delete "${name}" permanently?`,
+    deleteConfirm: 'Delete',
+    deleteCancel: 'Cancel',
+    saved: 'Info saved',
+    saveError: 'Error saving info',
+    coverTitle: 'Cover',
+    resetCover: 'Reset to default',
+    editCover: 'Edit cover',
+    coverChanged: 'Cover updated',
+    coverReset: 'Cover reset',
   },
 
   // ─── Add to Playlist Sheet ─────────────────────────────────────────────────
@@ -244,15 +288,15 @@ export const en = {
       waveform: 'Waveform',
     },
     transitions: {
-      crossfadeLabel: 'Crossfade',
-      crossfadeDesc: 'Adjust the duration and overlap between tracks.',
+      crossfadeLabel: 'Track fade',
+      crossfadeDesc: 'Fades out the ending track and fades in the next one.',
     },
     playback: {
-      monoLabel: 'Mono audio',
+      monoLabel: 'Mono audio content',
       monoDesc: 'Left and right speakers output identical audio.',
     },
     display: {
-      lockRotationLabel: 'Lock rotation',
+      lockRotationLabel: 'Lock screen rotation',
       lockRotationDesc: 'Force portrait mode, even when the phone is tilted.',
     },
   },
@@ -276,6 +320,8 @@ export const en = {
     unknownAlbum: 'Unknown album',
     addedToLibrary: 'Album added to library',
     removedFromLibrary: 'Album removed from library',
+    addToLibrary: 'Add to library',
+    removeFromLibraryAction: 'Remove from library',
   },
 
 };

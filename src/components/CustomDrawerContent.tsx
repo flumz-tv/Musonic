@@ -1,8 +1,17 @@
+/**
+ * @file CustomDrawerContent.tsx
+ * @description Content rendered inside the slide-in drawer. Shows navigation
+ *   links (Library, Settings, Disconnect) and the app logo/version.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React from 'react';
 import {useNavigation} from '@react-navigation/native';
 import {Alert, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Svg, {Line, Path, Circle} from 'react-native-svg';
+import LogoIcon from './icons/LogoIcon';
 import {darkTheme} from '../theme';
 import {useSettingsStore} from '../store/settingsStore';
 import {useT} from '../i18n';
@@ -66,7 +75,7 @@ export default function CustomDrawerContent({onClose}: Props) {
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.avatarCircle} />
+        <LogoIcon size={64} />
         <Text style={styles.appName}>Musonic</Text>
         {server && (
           <Text style={styles.serverName} numberOfLines={1}>
@@ -115,13 +124,6 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 28,
     gap: 8,
-  },
-  avatarCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#333',
-    marginBottom: 4,
   },
   appName: {
     fontSize: 24,

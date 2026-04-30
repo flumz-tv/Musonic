@@ -1,3 +1,12 @@
+/**
+ * @file ShuffleIcon.tsx
+ * @description SVG shuffle icon with an active-dot indicator. The dot appears
+ *   below the icon when shuffle is on; uses absolute positioning to avoid
+ *   shifting the icon height.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React from 'react';
 import {StyleSheet, View} from 'react-native';
 import Svg, {Path} from 'react-native-svg';

@@ -1,3 +1,11 @@
+/**
+ * @file useImageColor.ts
+ * @description Hook that extracts the dominant color from the active track's
+ *   artwork and updates playerStore.dominantColor for ambient player backgrounds.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import {useEffect} from 'react';
 import ImageColors from 'react-native-image-colors';
 import {useActiveTrack} from 'react-native-track-player';

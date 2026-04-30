@@ -1,3 +1,11 @@
+/**
+ * @file SearchStack.tsx
+ * @description Stack navigator for the Search tab. Includes SearchHome,
+ *   SearchActive, AlbumDetail, and ArtistDetail so results navigate in-tab.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React from 'react';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import SearchHome from '../screens/Search/SearchHome';

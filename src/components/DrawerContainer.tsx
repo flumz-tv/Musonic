@@ -1,3 +1,12 @@
+/**
+ * @file DrawerContainer.tsx
+ * @description Custom drawer implementation using React context + Animated.
+ *   Replaces @react-navigation/drawer which caused a WorkletsError with
+ *   react-native-reanimated v4 on New Architecture.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React, {
   createContext,
   useCallback,

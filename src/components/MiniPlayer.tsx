@@ -1,3 +1,11 @@
+/**
+ * @file MiniPlayer.tsx
+ * @description Sticky mini player bar shown at the bottom of main screens.
+ *   Supports swipe-left/right to skip tracks and tap to open the full-screen player.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React, {useCallback, useRef, useState} from 'react';
 import {Animated, Easing, PanResponder, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import Svg, {Circle, Path, Rect} from 'react-native-svg';
@@ -5,7 +13,7 @@ import {useActiveTrack, usePlaybackState, useProgress, State} from 'react-native
 import CoverArt from './CoverArt';
 import HeartIcon from './icons/HeartIcon';
 import AddToPlaylistSheet from './AddToPlaylistSheet';
-import Toast from './Toast';
+import {showToast} from './Toast';
 import TextTicker from 'react-native-text-ticker';
 import {usePlayerStore} from '../store/playerStore';
 import {skipNext, skipPrevForce} from '../services/playerActions';
@@ -93,17 +101,7 @@ export default function MiniPlayer() {
   const inPlaylist = trackId ? playlistSongIds.has(trackId) : false;
 
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const coverSlide = useRef(new Animated.Value(0)).current;
-
-  const showToast = useCallback((msg: string) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToastMessage(msg);
-    setToastVisible(true);
-    toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
-  }, []);
 
   const handleToggleLike = useCallback(() => {
     if (!trackId) return;
@@ -114,7 +112,7 @@ export default function MiniPlayer() {
       }
       // false = pending retry, LikeRetryManager handles the toast
     });
-  }, [trackId, localLikeOverrides, likedSongIds, toggleLike, showToast, t]);
+  }, [trackId, localLikeOverrides, likedSongIds, toggleLike, t]);
 
   const handleMiniSwipe = (direction: 'next' | 'prev') => {
     const exitX = direction === 'next' ? -52 : 52;
@@ -230,7 +228,6 @@ export default function MiniPlayer() {
         onToast={showToast}
       />
 
-      <Toast visible={toastVisible} message={toastMessage} />
     </>
   );
 }

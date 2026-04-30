@@ -1,3 +1,13 @@
+/**
+ * @file playerStore.ts
+ * @description Central Zustand store for all playback UI state: queue, history,
+ *   upcoming tracks, shuffle/repeat mode, liked-song overrides, playlist context,
+ *   and full-screen player visibility. RNTP is the source of truth for audio;
+ *   this store is the source of truth for UI.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import {create} from 'zustand';
 import TrackPlayer, {RepeatMode, State} from 'react-native-track-player';
 import {star, unstar} from '../api/endpoints/library';

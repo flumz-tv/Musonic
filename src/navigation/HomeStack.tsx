@@ -1,27 +1,26 @@
 /**
- * @file LibraryStack.tsx
- * @description Stack navigator for the Library tab. Includes LibraryHome,
- *   LikedSongs, PlaylistDetail, AlbumDetail, and ArtistDetail with typed params.
+ * @file HomeStack.tsx
+ * @description Stack navigator for the Home tab. Includes Home, LikedSongs,
+ *   PlaylistDetail, AlbumDetail, and ArtistDetail so detail screens are reachable
+ *   from the home feed without leaving the tab.
  * @author DoodzProg
  * @version 0.9.1
  * @license CC-BY-NC-4.0
  */
 import React from 'react';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import LibraryScreen from '../screens/Library';
+import HomeScreen from '../screens/Home';
 import LikedSongsScreen from '../screens/LikedSongs';
 import PlaylistDetailScreen from '../screens/PlaylistDetail';
 import AlbumDetailScreen from '../screens/AlbumDetail';
 import ArtistDetailScreen from '../screens/ArtistDetail';
-import type {LibraryStackParams} from './types';
 
-const Stack = createNativeStackNavigator<LibraryStackParams>();
+const Stack = createNativeStackNavigator();
 
-export default function LibraryStack() {
+export default function HomeStack() {
   return (
-    <Stack.Navigator
-      screenOptions={{headerShown: false, animation: 'slide_from_right'}}>
-      <Stack.Screen name="LibraryHome" component={LibraryScreen} />
+    <Stack.Navigator screenOptions={{headerShown: false, animation: 'slide_from_right'}}>
+      <Stack.Screen name="HomeMain" component={HomeScreen} />
       <Stack.Screen name="LikedSongs" component={LikedSongsScreen} />
       <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} />
       <Stack.Screen name="AlbumDetail" component={AlbumDetailScreen} />

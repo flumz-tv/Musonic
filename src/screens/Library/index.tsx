@@ -4,7 +4,7 @@
  *   liked songs in list or grid view with sort options, pin support, pull-to-refresh,
  *   and auto-recovery on connectivity restore.
  * @author DoodzProg
- * @version 0.9.0
+ * @version 0.9.1
  * @license MIT
  */
 
@@ -37,7 +37,9 @@ import {usePlayerStore} from '../../store/playerStore';
 import type {SubsonicPlaylist, SubsonicAlbum} from '../../api/types';
 import type {LibraryStackParams} from '../../navigation/types';
 import PlaylistOptionsSheet from '../../components/PlaylistOptionsSheet';
-import Toast from '../../components/Toast';
+import {showToast} from '../../components/Toast';
+import LogoIcon from '../../components/icons/LogoIcon';
+import {useDrawer} from '../../components/DrawerContainer';
 import HeartIcon from '../../components/icons/HeartIcon';
 import {useT, getT} from '../../i18n';
 import {useNetworkStore} from '../../store/networkStore';
@@ -71,15 +73,6 @@ function formatDuration(seconds: number): string {
 }
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
-
-function ProfileIcon({size = 32}: {size?: number}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Circle cx="12" cy="8" r="4" fill="#888" />
-      <Path d="M4 20 C4 16 8 13 12 13 C16 13 20 16 20 20" fill="#888" />
-    </Svg>
-  );
-}
 
 function SearchIcon({size = 22, color = '#fff'}: {size?: number; color?: string}) {
   return (
@@ -406,8 +399,8 @@ function PlaylistRow({
       activeOpacity={0.7}>
       {item.isLiked ? (
         <LikedCover size={65} />
-      ) : item.coverArt ? (
-        <CoverArt id={item.coverArt} size={65} borderRadius={6} />
+      ) : item.coverArt || item.kind === 'playlist' ? (
+        <CoverArt id={item.coverArt} size={65} borderRadius={6} playlistId={item.kind === 'playlist' ? item.id : undefined} />
       ) : (
         <DefaultCover size={65} />
       )}
@@ -474,8 +467,8 @@ function PlaylistGridCard({
       activeOpacity={0.7}>
       {item.isLiked ? (
         <LikedCover size={imgSize} borderRadius={8} />
-      ) : item.coverArt ? (
-        <CoverArt id={item.coverArt} size={imgSize} borderRadius={8} />
+      ) : item.coverArt || item.kind === 'playlist' ? (
+        <CoverArt id={item.coverArt} size={imgSize} borderRadius={8} playlistId={item.kind === 'playlist' ? item.id : undefined} />
       ) : (
         <DefaultCover size={imgSize} />
       )}
@@ -496,6 +489,7 @@ function PlaylistGridCard({
 
 export default function LibraryScreen() {
   const t = useT();
+  const {open: openDrawer} = useDrawer();
 
   const SORT_LABELS: Record<SortMode, string> = {
     recent: t.library.sort.recent,
@@ -540,17 +534,6 @@ export default function LibraryScreen() {
   }, [likedSongIds, localLikeOverrides]);
 
   const [refreshing, setRefreshing] = useState(false);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showToast = useCallback((msg: string) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToastMessage(msg);
-    setToastVisible(true);
-    toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
-  }, []);
-
   const fetchItems = useCallback(async () => {
     try {
       const [plData, starData] = await Promise.all([
@@ -699,7 +682,9 @@ export default function LibraryScreen() {
       {/* ── Top Header ── */}
       <View style={styles.topHeader}>
         <View style={styles.topHeaderLeft}>
-          <ProfileIcon size={34} />
+          <TouchableOpacity onPress={openDrawer} activeOpacity={0.7} style={styles.logoBtn}>
+            <LogoIcon size={36} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>{t.library.title}</Text>
         </View>
         <View style={styles.topHeaderRight}>
@@ -827,11 +812,6 @@ export default function LibraryScreen() {
         isPinned={optionsItem ? pinnedIds.has(optionsItem.id) : false}
         onTogglePin={handleTogglePin}
         onToast={showToast}
-        onRenamed={newName => {
-          if (optionsItem) {
-            setItems(prev => prev.map(i => i.id === optionsItem.id ? {...i, name: newName} : i));
-          }
-        }}
         onDeleted={() => {
           if (optionsItem) {
             setItems(prev => prev.filter(i => i.id !== optionsItem.id));
@@ -839,7 +819,6 @@ export default function LibraryScreen() {
           }
         }}
       />
-      <Toast visible={toastVisible} message={toastMessage} />
     </View>
   );
 }
@@ -864,6 +843,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  logoBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   headerTitle: {
     fontSize: 22,

@@ -1,3 +1,12 @@
+/**
+ * @file SongOptionsSheet.tsx
+ * @description Bottom sheet for per-track actions: like/unlike, manage playlist
+ *   membership, remove from current playlist, add to queue, go to album, go to
+ *   artist. Preserves last non-null track during the close animation.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Animated,
@@ -12,11 +21,14 @@ import {
 import Svg, {Circle, Path} from 'react-native-svg';
 import TrackPlayer from 'react-native-track-player';
 import CoverArt from './CoverArt';
+import HeartIcon from './icons/HeartIcon';
 import AddToPlaylistSheet from './AddToPlaylistSheet';
 import {darkTheme} from '../theme';
 import {updatePlaylist} from '../api/endpoints/playlists';
 import {getStreamUrl, getCoverArtUrl} from '../api/client';
 import {syncUpcomingFromRNTP} from '../services/playerActions';
+import {usePlayerStore} from '../store/playerStore';
+import {usePlaylistCacheStore, fetchAndCachePlaylistSongs} from '../store/playlistCacheStore';
 import {useT, getT} from '../i18n';
 import type {SubsonicSong} from '../api/types';
 
@@ -60,6 +72,15 @@ function DiscIcon() {
       <Circle cx={12} cy={12} r={10} stroke={ICON_COLOR} strokeWidth={1.7} fill="none" />
       <Circle cx={12} cy={12} r={3} stroke={ICON_COLOR} strokeWidth={1.7} fill="none" />
       <Circle cx={12} cy={12} r={1} fill={ICON_COLOR} />
+    </Svg>
+  );
+}
+
+function CheckCircleIcon() {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24">
+      <Circle cx={12} cy={12} r={10} stroke="#1ED760" strokeWidth={1.7} fill="rgba(30,215,96,0.12)" />
+      <Path d="M7.5 12 L10.5 15 L16.5 9" stroke="#1ED760" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </Svg>
   );
 }
@@ -137,6 +158,16 @@ export default function SongOptionsSheet({
   if (track) lastTrack.current = track;
   const tr = lastTrack.current;
 
+  const likedSongIds = usePlayerStore(s => s.likedSongIds);
+  const localLikeOverrides = usePlayerStore(s => s.localLikeOverrides);
+  const toggleLike = usePlayerStore(s => s.toggleLike);
+  const savedSet = usePlaylistCacheStore(s => s.savedSet);
+  const trackId = tr ? String(tr.id) : null;
+  const isLiked = trackId
+    ? (localLikeOverrides[trackId] !== undefined ? localLikeOverrides[trackId] : likedSongIds.has(trackId))
+    : false;
+  const isInPlaylist = trackId ? savedSet.has(trackId) : false;
+
   useEffect(() => {
     if (visible) {
       Animated.parallel([
@@ -181,10 +212,18 @@ export default function SongOptionsSheet({
       await updatePlaylist(playlistId, undefined, undefined, [trackIndex]);
       onToast(getT().songOptions.removedFromPlaylist);
       onRemoved?.();
+      fetchAndCachePlaylistSongs();
     } catch {
       onToast(getT().songOptions.removeError);
     }
   }, [playlistId, trackIndex, onClose, onToast, onRemoved]);
+
+  const handleToggleLike = useCallback(async () => {
+    if (!trackId) return;
+    onClose();
+    await toggleLike(trackId);
+    onToast(isLiked ? getT().likes.removedFromLiked : getT().likes.addedToLiked);
+  }, [trackId, onClose, toggleLike, isLiked, onToast]);
 
   const handleGoToAlbum = useCallback(() => {
     onClose();
@@ -227,8 +266,15 @@ export default function SongOptionsSheet({
 
           {/* Actions */}
           <ActionRow
-            icon={<PlusCircleIcon />}
-            label={t.songOptions.addToPlaylist}
+            icon={isLiked
+              ? <HeartIcon size={22} color={darkTheme.accent} filled />
+              : <HeartIcon size={22} color={ICON_COLOR} />}
+            label={isLiked ? t.songOptions.removeFromLiked : t.songOptions.addToLiked}
+            onPress={handleToggleLike}
+          />
+          <ActionRow
+            icon={isInPlaylist ? <CheckCircleIcon /> : <PlusCircleIcon />}
+            label={isInPlaylist ? t.songOptions.manageInPlaylists : t.songOptions.addToPlaylist}
             onPress={() => setAddPlaylistVisible(true)}
           />
           {playlistId != null && (
@@ -243,7 +289,7 @@ export default function SongOptionsSheet({
             label={t.songOptions.addToQueue}
             onPress={handleAddToQueue}
           />
-          {tr?.albumId && (
+          {tr?.albumId && onNavigateAlbum && (
             <ActionRow
               icon={<DiscIcon />}
               label={t.songOptions.goToAlbum}

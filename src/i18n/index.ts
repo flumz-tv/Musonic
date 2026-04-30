@@ -1,3 +1,12 @@
+/**
+ * @file index.ts
+ * @description i18n entry point. Exports `useT()` (React hook) and `getT()`
+ *   (imperative, for use outside components) to return the current locale object.
+ *   Language selection is driven by settingsStore.language.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import {t as fr} from './fr';
 import {en} from './en';
 import {useSettingsStore} from '../store/settingsStore';

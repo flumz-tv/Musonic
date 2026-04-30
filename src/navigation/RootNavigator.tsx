@@ -1,3 +1,12 @@
+/**
+ * @file RootNavigator.tsx
+ * @description Root navigator. Gates between ServerSetup (no credentials) and
+ *   the main DrawerContainer. Also locks screen orientation based on user
+ *   settings and manages the full-screen player overlay.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React, {useEffect} from 'react';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import Orientation from 'react-native-orientation-locker';

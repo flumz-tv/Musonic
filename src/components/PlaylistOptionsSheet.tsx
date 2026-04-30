@@ -1,4 +1,12 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+/**
+ * @file PlaylistOptionsSheet.tsx
+ * @description Bottom sheet with playlist-level actions: add all to queue,
+ *   add all to another playlist, pin/unpin, rename, edit cover, and delete.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
+import React, {useCallback, useEffect, useRef} from 'react';
 import {
   Alert,
   Animated,
@@ -7,7 +15,6 @@ import {
   Modal,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -15,7 +22,7 @@ import Svg, {Circle, Path} from 'react-native-svg';
 import TrackPlayer from 'react-native-track-player';
 import CoverArt from './CoverArt';
 import {darkTheme} from '../theme';
-import {getPlaylist, updatePlaylist, deletePlaylist} from '../api/endpoints/playlists';
+import {getPlaylist, deletePlaylist} from '../api/endpoints/playlists';
 import {getStreamUrl, getCoverArtUrl} from '../api/client';
 import {syncUpcomingFromRNTP} from '../services/playerActions';
 import {useT, getT} from '../i18n';
@@ -98,6 +105,36 @@ function TrashIcon({color = ICON_COLOR}: {color?: string}) {
   );
 }
 
+function HamburgerIcon({color = ICON_COLOR}: {color?: string}) {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24">
+      <Path d="M3 6 H21 M3 12 H21 M3 18 H21" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function ImageIcon({color = ICON_COLOR}: {color?: string}) {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24">
+      <Path
+        d="M3 5 C3 3.9 3.9 3 5 3 H19 C20.1 3 21 3.9 21 5 V19 C21 20.1 20.1 21 19 21 H5 C3.9 21 3 20.1 3 19 Z"
+        stroke={color} strokeWidth={1.7} fill="none" />
+      <Circle cx={8.5} cy={8.5} r={1.5} fill={color} />
+      <Path d="M3 15 L8 10 L12 14 L15 11 L21 17"
+        stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </Svg>
+  );
+}
+
+function ListAddIcon({color = ICON_COLOR}: {color?: string}) {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24">
+      <Path d="M3 6 H15 M3 12 H13 M3 18 H10" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+      <Path d="M17 12 V20 M13 16 H21" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type PlaylistInfo = {
@@ -114,8 +151,11 @@ type Props = {
   isPinned: boolean;
   onTogglePin: () => void;
   onToast: (message: string) => void;
-  onRenamed?: (newName: string) => void;
   onDeleted?: () => void;
+  onStartEdit?: () => void;
+  onOpenInfo?: () => void;
+  onOpenCover?: () => void;
+  onAddAll?: () => void;
 };
 
 // ─── Action Row ───────────────────────────────────────────────────────────────
@@ -139,57 +179,6 @@ function ActionRow({
   );
 }
 
-// ─── Rename Modal ─────────────────────────────────────────────────────────────
-
-function RenameModal({
-  visible,
-  initialName,
-  onCancel,
-  onConfirm,
-}: {
-  visible: boolean;
-  initialName: string;
-  onCancel: () => void;
-  onConfirm: (name: string) => void;
-}) {
-  const t = useT();
-  const [value, setValue] = useState(initialName);
-  useEffect(() => {
-    if (visible) setValue(initialName);
-  }, [visible, initialName]);
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onCancel}>
-      <View style={styles.renameOverlay}>
-        <View style={styles.renameCard}>
-          <Text style={styles.renameTitle}>{t.renameModal.title}</Text>
-          <TextInput
-            style={styles.renameInput}
-            value={value}
-            onChangeText={setValue}
-            autoFocus
-            selectTextOnFocus
-            placeholderTextColor="#555"
-            maxLength={100}
-          />
-          <View style={styles.renameBtns}>
-            <TouchableOpacity style={styles.renameBtnCancel} onPress={onCancel} activeOpacity={0.7}>
-              <Text style={styles.renameBtnCancelText}>{t.renameModal.cancelButton}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.renameBtnOk, !value.trim() && styles.disabled]}
-              onPress={() => value.trim() && onConfirm(value.trim())}
-              activeOpacity={0.7}
-              disabled={!value.trim()}>
-              <Text style={styles.renameBtnOkText}>{t.renameModal.confirmButton}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function PlaylistOptionsSheet({
@@ -199,13 +188,15 @@ export default function PlaylistOptionsSheet({
   isPinned,
   onTogglePin,
   onToast,
-  onRenamed,
   onDeleted,
+  onStartEdit,
+  onOpenInfo,
+  onOpenCover,
+  onAddAll,
 }: Props) {
   const t = useT();
   const translateY = useRef(new Animated.Value(SH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
-  const [renameVisible, setRenameVisible] = useState(false);
 
   const lastPlaylist = useRef(playlist);
   if (playlist) lastPlaylist.current = playlist;
@@ -255,19 +246,6 @@ export default function PlaylistOptionsSheet({
     onToast(isPinned ? getT().playlistOptions.unpinnedToast : getT().playlistOptions.pinnedToast);
   }, [onTogglePin, onClose, onToast, isPinned]);
 
-  const handleRenameConfirm = useCallback(async (newName: string) => {
-    if (!p) return;
-    setRenameVisible(false);
-    onClose();
-    try {
-      await updatePlaylist(p.id, newName);
-      onRenamed?.(newName);
-      onToast(getT().playlistOptions.renamedToast);
-    } catch {
-      onToast(getT().playlistOptions.renameError);
-    }
-  }, [p, onClose, onRenamed, onToast]);
-
   const handleDelete = useCallback(() => {
     if (!p) return;
     Alert.alert(
@@ -311,7 +289,7 @@ export default function PlaylistOptionsSheet({
           {/* Header */}
           {p && (
             <View style={styles.header}>
-              <CoverArt id={p.coverArt} size={48} borderRadius={4} />
+              <CoverArt id={p.coverArt} size={48} borderRadius={4} playlistId={p.id} />
               <View style={styles.headerText}>
                 <Text style={styles.headerTitle} numberOfLines={1}>{p.name}</Text>
                 <Text style={styles.headerSub} numberOfLines={1}>
@@ -322,18 +300,25 @@ export default function PlaylistOptionsSheet({
           )}
           <View style={styles.divider} />
 
+          {onStartEdit && (
+            <ActionRow icon={<HamburgerIcon />} label={t.playlistOptions.editPlaylist} onPress={() => { onClose(); onStartEdit(); }} />
+          )}
+          {onOpenInfo && (
+            <ActionRow icon={<PencilIcon />} label={t.playlistOptions.nameAndInfo} onPress={() => { onClose(); onOpenInfo(); }} />
+          )}
+          {onOpenCover && (
+            <ActionRow icon={<ImageIcon />} label={t.playlistOptions.editCover} onPress={() => { onClose(); onOpenCover(); }} />
+          )}
           <ActionRow icon={<QueuePlusIcon />} label={t.playlistOptions.addToQueue} onPress={handleAddToQueue} />
           <ActionRow icon={<DownloadCircleIcon />} label={t.playlistOptions.download} onPress={() => { onClose(); onToast(t.playlistOptions.comingSoon); }} />
+          {onAddAll && (
+            <ActionRow icon={<ListAddIcon />} label={t.playlistOptions.addAllToPlaylist} onPress={() => { onClose(); onAddAll(); }} />
+          )}
           <ActionRow
             icon={<PinIcon color={isPinned ? darkTheme.accent : ICON_COLOR} />}
             label={isPinned ? t.playlistOptions.unpin : t.playlistOptions.pin}
             onPress={handlePin}
             accent={isPinned}
-          />
-          <ActionRow
-            icon={<PencilIcon />}
-            label={t.playlistOptions.rename}
-            onPress={() => setRenameVisible(true)}
           />
           <ActionRow
             icon={<TrashIcon color="#E84040" />}
@@ -345,12 +330,6 @@ export default function PlaylistOptionsSheet({
         </Animated.View>
       </Modal>
 
-      <RenameModal
-        visible={renameVisible}
-        initialName={p?.name ?? ''}
-        onCancel={() => setRenameVisible(false)}
-        onConfirm={handleRenameConfirm}
-      />
     </>
   );
 }
@@ -423,63 +402,5 @@ const styles = StyleSheet.create({
   },
   bottomPad: {
     height: 24,
-  },
-  // Rename modal
-  renameOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  renameCard: {
-    width: '100%',
-    backgroundColor: '#282828',
-    borderRadius: 16,
-    padding: 24,
-  },
-  renameTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  renameInput: {
-    backgroundColor: '#3a3a3a',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#fff',
-    marginBottom: 20,
-  },
-  renameBtns: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  renameBtnCancel: {
-    flex: 1,
-    paddingVertical: 13,
-    borderRadius: 8,
-    backgroundColor: '#3a3a3a',
-    alignItems: 'center',
-  },
-  renameBtnCancelText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  renameBtnOk: {
-    flex: 1,
-    paddingVertical: 13,
-    borderRadius: 8,
-    backgroundColor: darkTheme.accent,
-    alignItems: 'center',
-  },
-  renameBtnOkText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#fff',
   },
 });

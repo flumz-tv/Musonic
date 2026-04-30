@@ -1,3 +1,12 @@
+/**
+ * @file LikeRetryManager.tsx
+ * @description Null-render component that retries failed star/unstar API calls
+ *   when the track changes. Keeps optimistic UI consistent after transient errors
+ *   without blocking playback.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {useActiveTrack, usePlaybackState, State} from 'react-native-track-player';
 import {usePlayerStore} from '../store/playerStore';

@@ -1,3 +1,11 @@
+/**
+ * @file AlbumCard.tsx
+ * @description Vertical card for displaying an album or single in horizontal
+ *   scroll lists (Home, ArtistDetail). Shows cover art, name, and artist.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React from 'react';
 import {Text, TouchableOpacity, StyleSheet} from 'react-native';
 import CoverArt from './CoverArt';
@@ -9,10 +17,11 @@ type Props = {
   artist?: string;
   coverArt?: string;
   imageUrl?: string;
+  label?: string;
   onPress?: () => void;
 };
 
-export default function AlbumCard({name, artist, coverArt, imageUrl, onPress}: Props) {
+export default function AlbumCard({name, artist, coverArt, imageUrl, label, onPress}: Props) {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
       <CoverArt id={coverArt} size={150} borderRadius={6} imageUrl={imageUrl} />
@@ -22,6 +31,11 @@ export default function AlbumCard({name, artist, coverArt, imageUrl, onPress}: P
       {artist && (
         <Text style={styles.artist} numberOfLines={1}>
           {artist}
+        </Text>
+      )}
+      {label && (
+        <Text style={styles.label} numberOfLines={1}>
+          {label}
         </Text>
       )}
     </TouchableOpacity>
@@ -44,5 +58,11 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontSize: 12,
     color: darkTheme.textSecondary,
+  },
+  label: {
+    marginTop: 3,
+    fontSize: 11,
+    color: '#6A6A6A',
+    fontWeight: '500',
   },
 });

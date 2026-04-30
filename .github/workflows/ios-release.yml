@@ -1,9 +1,6 @@
 name: iOS Release IPA
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 # Inspired by azusa-player-mobile (lovegaoshi/azusa-player-mobile)

@@ -4,7 +4,7 @@
  *   drag-and-drop reordering, inline search, edit mode, recommended track
  *   suggestions, and full CRUD support (add, remove, rename).
  * @author DoodzProg
- * @version 0.9.0
+ * @version 0.9.1
  * @license MIT
  */
 
@@ -14,6 +14,7 @@ import {
   Animated,
   Dimensions,
   FlatList,
+  Image,
   StatusBar,
   StyleSheet,
   Text,
@@ -32,7 +33,7 @@ import CoverArt from '../../components/CoverArt';
 import {getPlaylist, replacePlaylist} from '../../api/endpoints/playlists';
 import {loadAndPlayPlaylist, loadAndPlayTracks} from '../../services/playerActions';
 import ShuffleIcon from '../../components/icons/ShuffleIcon';
-import {useActiveTrack, usePlaybackState, State} from 'react-native-track-player';
+import {usePlaybackState, State} from 'react-native-track-player';
 import {usePlayerStore} from '../../store/playerStore';
 import {colorFromId} from '../../utils/colorUtils';
 import type {SubsonicSong} from '../../api/types';
@@ -43,8 +44,12 @@ import DraggableFlatList, {ScaleDecorator} from 'react-native-draggable-flatlist
 import type {RenderItemParams} from 'react-native-draggable-flatlist';
 import SongOptionsSheet from '../../components/SongOptionsSheet';
 import PlaylistOptionsSheet from '../../components/PlaylistOptionsSheet';
-import Toast from '../../components/Toast';
+import AddToPlaylistSheet from '../../components/AddToPlaylistSheet';
+import PlaylistInfoModal, {getLocalCoverUri} from '../../components/PlaylistInfoModal';
+import {showToast} from '../../components/Toast';
 import {useT, getT} from '../../i18n';
+import {fetchAndCachePlaylistSongs} from '../../store/playlistCacheStore';
+import BackArrowIcon from '../../components/icons/BackArrowIcon';
 
 const {width: SCREEN_W, height: SCREEN_H} = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 80, 260);
@@ -115,21 +120,6 @@ function formatDuration(s: number): string {
 }
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
-
-function BackIcon({size = 24, color = '#fff'}: {size?: number; color?: string}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Path
-        d="M15 4 L7 12 L15 20"
-        stroke={color}
-        strokeWidth={2.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </Svg>
-  );
-}
 
 function SearchSmIcon({size = 18, color = '#888'}: {size?: number; color?: string}) {
   return (
@@ -262,7 +252,7 @@ function MusicNoteIcon({size = 20, color = '#666'}: {size?: number; color?: stri
 function MinusCircleIcon({size = 24}: {size?: number}) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Circle cx={12} cy={12} r={11} fill="#FF4444" />
+      <Circle cx={12} cy={12} r={11} fill="#555" />
       <Path d="M7 12 H17" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" />
     </Svg>
   );
@@ -344,6 +334,7 @@ function SongRow({song, isActive, onPress, onMorePress}: SongRowProps) {
 type HeaderProps = {
   topBarH: number;
   coverArtId?: string;
+  localCoverUri?: string | null;
   playlistName: string;
   songCount: number;
   totalDuration: number;
@@ -359,11 +350,13 @@ type HeaderProps = {
   onShuffle: () => void;
   onMorePress: () => void;
   onStartEdit: () => void;
+  onOpenInfo: () => void;
 };
 
 function PlaylistHeader({
   topBarH,
   coverArtId,
+  localCoverUri,
   playlistName,
   songCount,
   totalDuration,
@@ -379,6 +372,7 @@ function PlaylistHeader({
   onShuffle,
   onMorePress,
   onStartEdit,
+  onOpenInfo,
 }: HeaderProps) {
   const t = useT();
   const showPause = isThisPlaylistActive && isGlobalPlaying;
@@ -407,7 +401,9 @@ function PlaylistHeader({
             styles.coverShadow,
             {transform: [{scale: coverScale}, {translateY: coverTranslateY}]},
           ]}>
-          {coverArtId ? (
+          {localCoverUri ? (
+            <Image source={{uri: localCoverUri}} style={styles.coverLocalImg} />
+          ) : coverArtId ? (
             <CoverArt id={coverArtId} size={COVER_SIZE} borderRadius={8} />
           ) : (
             <LikedCover size={COVER_SIZE} />
@@ -472,16 +468,17 @@ function PlaylistHeader({
 
       {/* Pills */}
       <View style={styles.pillsRow}>
-        <TouchableOpacity style={styles.pillBtn} activeOpacity={0.7}>
-          <Text style={styles.pillText}>{t.playlistDetail.pills.add}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.pillBtn} activeOpacity={0.7}>
-          <FadersIcon size={14} />
-          <Text style={[styles.pillText, styles.pillTextIndent]}>{t.playlistDetail.pills.mix}</Text>
-        </TouchableOpacity>
         <TouchableOpacity style={styles.pillBtn} activeOpacity={0.7} onPress={onStartEdit}>
-          <PencilIcon size={14} />
+          <DragHandleIcon size={14} color="#fff" />
           <Text style={[styles.pillText, styles.pillTextIndent]}>{t.playlistDetail.pills.edit}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.pillBtn} activeOpacity={0.7} onPress={() => showToast(t.playlistDetail.comingSoon)}>
+          <FadersIcon size={14} />
+          <Text style={[styles.pillText, styles.pillTextIndent]}>{t.playlistDetail.pills.sort}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.pillBtn} activeOpacity={0.7} onPress={onOpenInfo}>
+          <PencilIcon size={14} />
+          <Text style={[styles.pillText, styles.pillTextIndent]}>{t.playlistDetail.pills.info}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -536,7 +533,7 @@ function EditHeader({
   return (
     <View style={[styles.editBar, {paddingTop: topInset}]}>
       <TouchableOpacity onPress={onCancel} style={styles.editBarSide} activeOpacity={0.7}>
-        <BackIcon size={22} />
+        <BackArrowIcon size={22} />
       </TouchableOpacity>
       <Text style={styles.editBarTitle}>{t.playlistDetail.editHeader}</Text>
       <TouchableOpacity
@@ -604,6 +601,7 @@ export default function PlaylistDetailScreen() {
   const {playlistId} = route.params;
 
   const [playlistName, setPlaylistName] = useState('');
+  const [description, setDescription] = useState('');
   const [songs, setSongs] = useState<SubsonicSong[]>([]);
   const [coverArtId, setCoverArtId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
@@ -615,23 +613,15 @@ export default function PlaylistDetailScreen() {
   const [editSongs, setEditSongs] = useState<SubsonicSong[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Sheets
+  const [localCoverUri, setLocalCoverUri] = useState<string | null>(() => getLocalCoverUri(playlistId));
+
+  // Sheets & modals
   const [songOptionsTrack, setSongOptionsTrack] = useState<SubsonicSong | null>(null);
   const [songOptionsIndex, setSongOptionsIndex] = useState<number>(0);
   const [playlistOptionsVisible, setPlaylistOptionsVisible] = useState(false);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showToast = useCallback((msg: string) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToastMessage(msg);
-    setToastVisible(true);
-    toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
-  }, []);
-
-  const activeTrack = useActiveTrack();
-  const currentTrackId = activeTrack?.id ? String(activeTrack.id) : undefined;
+  const [infoModalVisible, setInfoModalVisible] = useState(false);
+  const [infoModalInitialView, setInfoModalInitialView] = useState<'info' | 'cover'>('info');
+  const [addAllVisible, setAddAllVisible] = useState(false);
   const playbackState = usePlaybackState();
   const isGlobalPlaying = playbackState.state === State.Playing;
   const currentPlaylistId = usePlayerStore(s => s.currentPlaylistId);
@@ -640,6 +630,13 @@ export default function PlaylistDetailScreen() {
   const togglePlay = usePlayerStore(s => s.togglePlay);
 
   const isThisPlaylistActive = currentPlaylistId === playlistId;
+
+  // history.length == index of the currently playing track in the RNTP queue.
+  // AudioPlayer syncs this from PlaybackActiveTrackChanged, so it stays current.
+  // -1 when this playlist is not the active context, so no row highlights.
+  const queueHistory = usePlayerStore(s => s.history);
+  const activeQueueIndex = isThisPlaylistActive ? queueHistory.length : -1;
+
   const dominantColor = usePlaylistColor(coverArtId);
   const topBarH = insets.top + TOP_BAR_H;
 
@@ -656,10 +653,18 @@ export default function PlaylistDetailScreen() {
     extrapolate: 'clamp',
   });
 
+  // Refresh local cover whenever info modal closes
+  useEffect(() => {
+    if (!infoModalVisible) {
+      setLocalCoverUri(getLocalCoverUri(playlistId));
+    }
+  }, [infoModalVisible, playlistId]);
+
   useEffect(() => {
     getPlaylist(playlistId)
       .then(({playlist, songs: s}) => {
         setPlaylistName(playlist.name);
+        setDescription(playlist.comment ?? '');
         setCoverArtId(playlist.coverArt);
         setSongs(s);
       })
@@ -682,15 +687,20 @@ export default function PlaylistDetailScreen() {
     }
   }, [isThisPlaylistActive, togglePlay, playlistId, isShuffled]);
 
-  const filteredSongs = useMemo(
+  // Pair each displayed song with its original index in `songs` so we can:
+  // 1. Pass the exact startIndex to RNTP (correct playback position)
+  // 2. Highlight only the index actually playing, not all occurrences of the same ID
+  const filteredWithOrigIdx = useMemo(
     () =>
       query.length < 2
-        ? songs
-        : songs.filter(
-            s =>
-              s.title.toLowerCase().includes(query.toLowerCase()) ||
-              s.artist.toLowerCase().includes(query.toLowerCase()),
-          ),
+        ? songs.map((s, i) => ({s, origIdx: i}))
+        : songs
+            .map((s, i) => ({s, origIdx: i}))
+            .filter(
+              ({s}) =>
+                s.title.toLowerCase().includes(query.toLowerCase()) ||
+                s.artist.toLowerCase().includes(query.toLowerCase()),
+            ),
     [songs, query],
   );
 
@@ -699,7 +709,7 @@ export default function PlaylistDetailScreen() {
     [songs],
   );
 
-  const handlePlayTrack = useCallback(async (startIndex: number) => {
+  const handlePlayTrack = useCallback(async (origIdx: number) => {
     if (!songs.length) return;
     const tracks: Track[] = songs.map((s: any) => ({
       id: s.id,
@@ -712,16 +722,15 @@ export default function PlaylistDetailScreen() {
       url: getStreamUrl(s.id),
       artwork: getCoverArtUrl(s.coverArt || s.id, 300),
     }));
-    usePlayerStore.getState().setCurrentPlaylist(playlistId, playlistName);
-    await loadAndPlayTracks(tracks, startIndex);
+    await loadAndPlayTracks(tracks, origIdx, {id: playlistId, name: playlistName});
   }, [songs, playlistId, playlistName]);
 
-  const handleSongMore = useCallback((song: SubsonicSong, idx: number) => {
+  const handleSongMore = useCallback((song: SubsonicSong, origIdx: number) => {
     setSongOptionsTrack(song);
-    // idx here is filtered index — find real index in full songs array for removal
-    const realIdx = songs.findIndex(s => s.id === song.id);
-    setSongOptionsIndex(realIdx >= 0 ? realIdx : idx);
-  }, [songs]);
+    // Use the pre-computed original index directly — findIndex by ID would return the
+    // first duplicate, causing removal of the wrong entry in playlists with repeated tracks.
+    setSongOptionsIndex(origIdx);
+  }, []);
 
   const handleSongRemoved = useCallback(() => {
     setSongOptionsTrack(null);
@@ -748,6 +757,26 @@ export default function PlaylistDetailScreen() {
     setIsEditing(true);
   }, [songs]);
 
+  const handleOpenInfo = useCallback(() => {
+    setInfoModalInitialView('info');
+    setInfoModalVisible(true);
+  }, []);
+
+  const handleOpenCover = useCallback(() => {
+    setInfoModalInitialView('cover');
+    setInfoModalVisible(true);
+  }, []);
+
+  const handleInfoSaved = useCallback((name: string, desc: string) => {
+    setPlaylistName(name);
+    setDescription(desc);
+    showToast(getT().playlistInfo.saved);
+  }, []);
+
+  const handleInfoDeleted = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
   const handleCancelEdit = useCallback(() => {
     setIsEditing(false);
     setEditSongs([]);
@@ -768,27 +797,34 @@ export default function PlaylistDetailScreen() {
       setIsEditing(false);
       setEditSongs([]);
       showToast(getT().playlistDetail.savedToast);
+      fetchAndCachePlaylistSongs();
     } catch {
       showToast(getT().playlistDetail.saveError);
     } finally {
       setIsSaving(false);
     }
-  }, [editSongs, playlistId, showToast]);
+  }, [editSongs, playlistId]);
 
-  const renderItem = useCallback(({item, index}: {item: SubsonicSong, index: number}) => (
-    <SongRow
-      song={item}
-      isActive={currentTrackId === item.id}
-      onPress={() => handlePlayTrack(index)}
-      onMorePress={() => handleSongMore(item, index)}
-    />
-  ), [currentTrackId, handlePlayTrack, handleSongMore]);
+  const renderItem = useCallback(
+    ({item}: {item: {s: SubsonicSong; origIdx: number}}) => (
+      <SongRow
+        song={item.s}
+        // Highlight by position, not by ID: avoids false positives when playing
+        // from a different context, and handles duplicate songs in the same playlist.
+        isActive={activeQueueIndex === item.origIdx}
+        onPress={() => handlePlayTrack(item.origIdx)}
+        onMorePress={() => handleSongMore(item.s, item.origIdx)}
+      />
+    ),
+    [activeQueueIndex, handlePlayTrack, handleSongMore],
+  );
 
   const listHeader = useMemo(
     () => (
       <PlaylistHeader
         topBarH={topBarH}
         coverArtId={coverArtId}
+        localCoverUri={localCoverUri}
         playlistName={playlistName}
         songCount={songs.length}
         totalDuration={totalDuration}
@@ -804,13 +840,14 @@ export default function PlaylistDetailScreen() {
         onShuffle={toggleShuffle}
         onMorePress={() => setPlaylistOptionsVisible(true)}
         onStartEdit={handleStartEdit}
+        onOpenInfo={handleOpenInfo}
       />
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      topBarH, coverArtId, playlistName, songs.length, totalDuration,
+      topBarH, coverArtId, localCoverUri, playlistName, songs.length, totalDuration,
       isShuffled, isThisPlaylistActive, isGlobalPlaying, loadingPlaylist,
-      query, handlePlay, handleStartEdit,
+      query, handlePlay, handleStartEdit, handleOpenInfo,
     ],
   );
 
@@ -833,7 +870,7 @@ export default function PlaylistDetailScreen() {
       {isEditing ? (
         <DraggableFlatList
           data={editSongs}
-          keyExtractor={item => String(item.id)}
+          keyExtractor={(item, index) => `${String(item.id)}-${index}`}
           renderItem={({item, drag, isActive}: RenderItemParams<SubsonicSong>) => (
             <EditSongRow
               song={item}
@@ -852,8 +889,8 @@ export default function PlaylistDetailScreen() {
         </View>
       ) : (
         <FlatList
-          data={filteredSongs}
-          keyExtractor={(item, index) => `${item.id}-${index}`}
+          data={filteredWithOrigIdx}
+          keyExtractor={(item) => `${String(item.s.id)}-${item.origIdx}`}
           renderItem={renderItem}
           ListHeaderComponent={listHeader}
           ListFooterComponent={<PlaylistFooter />}
@@ -882,7 +919,7 @@ export default function PlaylistDetailScreen() {
               style={styles.backBtn}
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}>
-              <BackIcon size={24} />
+              <BackArrowIcon size={24} />
             </TouchableOpacity>
           </View>
         </View>
@@ -907,11 +944,32 @@ export default function PlaylistDetailScreen() {
         isPinned={false}
         onTogglePin={() => {}}
         onToast={showToast}
-        onRenamed={newName => setPlaylistName(newName)}
         onDeleted={() => navigation.goBack()}
+        onStartEdit={handleStartEdit}
+        onOpenInfo={handleOpenInfo}
+        onOpenCover={handleOpenCover}
+        onAddAll={() => setAddAllVisible(true)}
       />
 
-      <Toast visible={toastVisible} message={toastMessage} />
+      <AddToPlaylistSheet
+        visible={addAllVisible}
+        onClose={() => setAddAllVisible(false)}
+        trackIds={songs.map(s => String(s.id))}
+        onToast={showToast}
+      />
+
+      <PlaylistInfoModal
+        visible={infoModalVisible}
+        onClose={() => setInfoModalVisible(false)}
+        playlistId={playlistId}
+        initialName={playlistName}
+        initialDescription={description}
+        coverArtId={coverArtId}
+        onSaved={handleInfoSaved}
+        onDeleted={handleInfoDeleted}
+        initialView={infoModalInitialView}
+      />
+
     </View>
   );
 }
@@ -984,6 +1042,11 @@ const styles = StyleSheet.create({
     shadowRadius: 22,
     elevation: 18,
   },
+  coverLocalImg: {
+    width: COVER_SIZE,
+    height: COVER_SIZE,
+    borderRadius: 8,
+  },
   meta: {
     paddingHorizontal: 16,
     marginBottom: 6,
@@ -1039,17 +1102,12 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   playBtn: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: darkTheme.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: darkTheme.accent,
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 8,
   },
   pillsRow: {
     flexDirection: 'row',

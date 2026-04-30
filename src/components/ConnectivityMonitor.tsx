@@ -1,3 +1,11 @@
+/**
+ * @file ConnectivityMonitor.tsx
+ * @description Null-render component that starts the connectivity polling service
+ *   when mounted. Lives in App.tsx so network status is always tracked.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import {useEffect} from 'react';
 import {start} from '../services/connectivityService';
 

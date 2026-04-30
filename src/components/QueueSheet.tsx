@@ -1,3 +1,11 @@
+/**
+ * @file QueueSheet.tsx
+ * @description Bottom sheet showing the current playback queue. Supports
+ *   drag-and-drop reordering, individual removal, and move-to-top actions.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Animated,

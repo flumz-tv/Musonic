@@ -1,3 +1,11 @@
+/**
+ * @file library.ts
+ * @description Subsonic library API endpoints: recently/frequently played albums,
+ *   starred items, similar songs/artists, and star/unstar actions.
+ * @author DoodzProg
+ * @version 0.9.1
+ * @license CC-BY-NC-4.0
+ */
 import {subsonicGet} from '../client';
 import type {SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicSimilarArtist} from '../types';
 
