@@ -799,12 +799,9 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   infoActions: {
-    alignItems: 'center',
-    gap: 10,
-  },
-  infoActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 0,
     gap: 16,
   },
   trackTitle: {
