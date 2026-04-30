@@ -4,8 +4,8 @@
  *   drag-and-drop reordering, inline search, edit mode, recommended track
  *   suggestions, and full CRUD support (add, remove, rename).
  * @author DoodzProg
- * @version 0.9.1
- * @license MIT
+ * @version 0.9.2
+ * @license CC-BY-NC-4.0
  */
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
@@ -28,6 +28,7 @@ import type {RouteProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import Svg, {Circle, Path} from 'react-native-svg';
 import LinearGradient from 'react-native-linear-gradient';
+import ImageColors from 'react-native-image-colors';
 import {darkTheme} from '../../theme';
 import CoverArt from '../../components/CoverArt';
 import {getPlaylist, replacePlaylist} from '../../api/endpoints/playlists';
@@ -55,34 +56,53 @@ const {width: SCREEN_W, height: SCREEN_H} = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 80, 260);
 const TOP_BAR_H = 52;
 
-// ─── Local dominant-color extraction ─────────────────────────────────────────
+// ─── Vivid color extraction via react-native-image-colors ────────────────────
 
-function dominantColorFromBuffer(bytes: Uint8Array): string {
-  const len = bytes.length;
-  if (len < 100) return '#3D1F0F';
-  const samples: [number, number, number][] = [];
-  const step = Math.max(3, Math.floor(len / 80));
-  for (let i = 128; i < len - 2; i += step) {
-    const r = bytes[i];
-    const g = bytes[i + 1];
-    const b = bytes[i + 2];
-    if (r > 240 && g > 240 && b > 240) continue;
-    if (r < 10 && g < 10 && b < 10) continue;
-    if (r === 255 && g === 0 && b === 0) continue;
-    samples.push([r, g, b]);
-  }
-  if (samples.length === 0) return '#3D1F0F';
-  samples.sort(
-    (a, b) =>
-      Math.max(...b) - Math.min(...b) - (Math.max(...a) - Math.min(...a)),
-  );
-  const top = samples.slice(0, Math.max(1, Math.floor(samples.length * 0.25)));
-  const avg = top
-    .reduce((acc, [r, g, b]) => [acc[0] + r, acc[1] + g, acc[2] + b], [0, 0, 0])
-    .map(v => Math.round(v / top.length));
-  const darken = (v: number) => Math.round(v * 0.55);
-  const toHex = (v: number) => darken(v).toString(16).padStart(2, '0');
-  return `#${toHex(avg[0])}${toHex(avg[1])}${toHex(avg[2])}`;
+function hexToRgb(hex: string): [number, number, number] {
+  const c = hex.replace('#', '');
+  if (c.length !== 6) return [61, 31, 15];
+  return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+}
+
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+  const rn = r / 255, gn = g / 255, bn = b / 255;
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn);
+  const delta = max - min;
+  const l = (max + min) / 2;
+  if (delta === 0) return [0, 0, l];
+  const s = delta / (1 - Math.abs(2 * l - 1));
+  let h = 0;
+  if (max === rn)      h = ((gn - bn) / delta) % 6;
+  else if (max === gn) h = (bn - rn) / delta + 2;
+  else                 h = (rn - gn) / delta + 4;
+  return [((h * 60) + 360) % 360, s, l];
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if      (h < 60)  { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else              { r = c; b = x; }
+  const round = (v: number) => Math.round((v + m) * 255);
+  return [round(r), round(g), round(b)];
+}
+
+// Boosts saturation and raises lightness to produce vivid, flashy gradient colors
+// while keeping text readable (L capped at 0.42).
+function toVividColor(hex: string): string {
+  const [r, g, b] = hexToRgb(hex);
+  const [h, s] = rgbToHsl(r, g, b);
+  const finalS = Math.min(1, Math.max(0.7, s * 1.5));
+  const finalL = 0.42;
+  const [fr, fg, fb] = hslToRgb(h, finalS, finalL);
+  const hex2 = (v: number) => Math.round(v).toString(16).padStart(2, '0');
+  return `#${hex2(fr)}${hex2(fg)}${hex2(fb)}`;
 }
 
 function usePlaylistColor(coverArtId?: string): string {
@@ -91,22 +111,29 @@ function usePlaylistColor(coverArtId?: string): string {
   );
   useEffect(() => {
     if (!coverArtId) return;
+    const fallback = colorFromId(coverArtId);
     let cancelled = false;
-    try {
-      const url = getCoverArtUrl(coverArtId, 200);
-      fetch(url)
-        .then(r => r.arrayBuffer())
-        .then(buf => {
-          if (!cancelled)
-            setColor(dominantColorFromBuffer(new Uint8Array(buf)));
-        })
-        .catch(() => {});
-    } catch {
-      /* no server configured */
-    }
-    return () => {
-      cancelled = true;
-    };
+    let url: string;
+    try { url = getCoverArtUrl(coverArtId, 200); } catch { return; }
+
+    ImageColors.getColors(url, {fallback, cache: true})
+      .then(result => {
+        if (cancelled) return;
+        let raw = fallback;
+        if (result.platform === 'android') {
+          raw = (result as any).vibrant
+             ?? (result as any).dominant
+             ?? (result as any).average
+             ?? fallback;
+        } else if (result.platform === 'ios') {
+          raw = (result as any).primary
+             ?? (result as any).background
+             ?? fallback;
+        }
+        if (!cancelled) setColor(toVividColor(raw));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [coverArtId]);
   return color;
 }
@@ -861,7 +888,7 @@ export default function PlaylistDetailScreen() {
       ) : (
         <LinearGradient
           colors={[dominantColor, darkTheme.background]}
-          locations={[0, 0.62]}
+          locations={[0, 0.72]}
           style={styles.bgGradient}
         />
       )}
@@ -988,7 +1015,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: SCREEN_H * 0.62,
+    height: SCREEN_H * 0.78,
   },
   // Fixed top bar
   topBar: {

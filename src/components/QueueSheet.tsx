@@ -30,9 +30,11 @@ import {useT} from '../i18n';
 import {useActiveTrack, usePlaybackState, State} from 'react-native-track-player';
 import {usePlayerStore, type Track} from '../store/playerStore';
 
-const {height: SH} = Dimensions.get('window');
+const {width: SW, height: SH} = Dimensions.get('window');
 const ORANGE = '#FF6B35';
 const SHEET_H = SH * 0.85;
+// sheetInner paddingHorizontal=20 both sides (40 total), 2 gaps of 8px between 3 buttons.
+const BOTTOM_BTN_W = Math.floor((SW - 40 - 16) / 3);
 
 // ─── Animated Equalizer ───────────────────────────────────────────────────────
 
@@ -269,6 +271,7 @@ export default function QueueSheet({visible, onClose, slideY}: Props) {
   ).current;
 
   const exitEditMode = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setIsEditMode(false);
     setSelectedIds([]);
   }, []);
@@ -588,13 +591,13 @@ const styles = StyleSheet.create({
   },
   bottomBar: {
     flexDirection: 'row',
-    gap: 10,
+    justifyContent: 'space-between',
     paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.08)',
   },
   bottomBtn: {
-    flex: 1,
+    width: BOTTOM_BTN_W,
     backgroundColor: '#2A2A2A',
     borderRadius: 8,
     alignItems: 'center',

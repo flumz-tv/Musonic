@@ -66,3 +66,92 @@ export async function getSimilarArtists(artistId: string, count = 20): Promise<S
   const res = await subsonicGet<any>('getArtistInfo2.view', {id: artistId, count});
   return res.artistInfo2?.similarArtist ?? [];
 }
+
+// ─── Lyrics ───────────────────────────────────────────────────────────────────
+
+export type LyricLine = {start?: number; value: string};
+export type LyricsData = {synced: boolean; lines: LyricLine[]} | null;
+
+// Parses LRC format "[mm:ss.xx] text" into timestamped lines.
+function parseLrc(lrc: string): LyricLine[] {
+  const lines: LyricLine[] = [];
+  for (const raw of lrc.split('\n')) {
+    const m = raw.match(/^\[(\d{1,2}):(\d{2})\.(\d{2,3})\](.*)/);
+    if (!m) continue;
+    const ms = (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) * 1000
+              + parseInt(m[3].padEnd(3, '0'), 10);
+    const value = m[4].trim();
+    if (value) lines.push({start: ms, value});
+  }
+  return lines;
+}
+
+export async function getLyricsBySongId(
+  songId: string,
+  artistName?: string,
+  trackTitle?: string,
+  duration?: number,
+): Promise<LyricsData> {
+  // 1. OpenSubsonic getLyricsBySongId (synced LRC when embedded in file)
+  try {
+    const res = await subsonicGet<any>('getLyricsBySongId.view', {id: songId});
+    const structured: any[] = res.lyricsList?.structuredLyrics ?? [];
+    if (structured.length > 0) {
+      const best = structured.find((s: any) => s.synced) ?? structured[0];
+      const lines: LyricLine[] = (best.line ?? [])
+        .filter((l: any) => typeof l.value === 'string' && l.value.trim())
+        .map((l: any) => ({start: l.start as number | undefined, value: String(l.value)}));
+      if (lines.length > 0) return {synced: !!best.synced, lines};
+    }
+  } catch { /* fall through */ }
+
+  // 2. Legacy Subsonic getLyrics (plain text fallback)
+  if (artistName && trackTitle) {
+    try {
+      const res = await subsonicGet<any>('getLyrics.view', {
+        artist: artistName,
+        title: trackTitle,
+      });
+      const text: string = res.lyrics?.value ?? '';
+      if (text.trim()) {
+        const lines: LyricLine[] = text
+          .split('\n')
+          .map((v: string) => v.trim())
+          .filter(Boolean)
+          .map((value: string) => ({value}));
+        if (lines.length > 0) return {synced: false, lines};
+      }
+    } catch { /* fall through */ }
+  }
+
+  // 3. LRCLIB public API — synced LRC preferred, plain text fallback
+  if (artistName && trackTitle) {
+    try {
+      const qs = new URLSearchParams({
+        artist_name: artistName,
+        track_name: trackTitle,
+        ...(duration != null ? {duration: String(Math.round(duration))} : {}),
+      });
+      const resp = await fetch(`https://lrclib.net/api/get?${qs}`, {
+        headers: {'Lrclib-Client': 'Musonic (https://github.com/DoodzProg/Musonic)'},
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.syncedLyrics) {
+          const lines = parseLrc(String(data.syncedLyrics));
+          if (lines.length > 0) return {synced: true, lines};
+        }
+        if (data.plainLyrics) {
+          const lines = (data.plainLyrics as string)
+            .split('\n')
+            .map((v: string) => v.trim())
+            .filter(Boolean)
+            .map((value: string) => ({value}));
+          if (lines.length > 0) return {synced: false, lines};
+        }
+      }
+    } catch { /* LRCLIB unreachable */ }
+  }
+
+  return null;
+}

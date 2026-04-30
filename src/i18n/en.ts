@@ -306,6 +306,11 @@ export const en = {
     lyricsTitle: 'Lyrics',
   },
 
+  // ─── Lyrics Screen ─────────────────────────────────────────────────────────
+  lyricsScreen: {
+    noLyrics: 'No lyrics available',
+  },
+
   // ─── Artist Detail ─────────────────────────────────────────────────────────
   artistDetail: {
     unknownArtist: 'Unknown artist',

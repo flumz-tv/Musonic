@@ -313,6 +313,11 @@ export const t = {
     lyricsTitle: 'Paroles',
   },
 
+  // ─── Lyrics Screen ─────────────────────────────────────────────────────────
+  lyricsScreen: {
+    noLyrics: 'Paroles non disponibles',
+  },
+
   // ─── Artist Detail ─────────────────────────────────────────────────────────
   artistDetail: {
     unknownArtist: 'Artiste inconnu',

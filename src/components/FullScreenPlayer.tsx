@@ -4,11 +4,12 @@
  *   3-slot cover carousel with swipe gesture, waveform scrubber, playback
  *   controls, lyrics preview, and queue access.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 0.9.2
  * @license CC-BY-NC-4.0
  */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   Easing,
@@ -38,11 +39,15 @@ import {useSettingsStore} from '../store/settingsStore';
 import WaveformScrubber from './WaveformScrubber';
 import QueueSheet from './QueueSheet';
 import AddToPlaylistSheet from './AddToPlaylistSheet';
+import SongOptionsSheet from './SongOptionsSheet';
+import LyricsScreen from './LyricsScreen';
 import Toast from './Toast';
 import {useT, getT} from '../i18n';
+import type {SubsonicSong} from '../api/types';
+import {getLyricsBySongId, type LyricsData} from '../api/endpoints/library';
 
 const {width: SW, height: SH} = Dimensions.get('window');
-const COVER_SIZE = Math.min(SW - 48, SH * 0.4);
+const COVER_SIZE = Math.min(SW - 64, SH * 0.36);
 const SLOT_W = SW - 48;
 const HIT = {top: 12, bottom: 12, left: 12, right: 12};
 
@@ -160,44 +165,11 @@ function RepeatIcon({mode}: {mode: RepeatMode}) {
   );
 }
 
-function DevicesIcon() {
+function QueueIcon({color = '#fff', size = 24}: {color?: string; size?: number}) {
   return (
-    <Svg width={22} height={22} viewBox="0 0 24 24">
-      <Rect x="2" y="3" width="20" height="14" rx="2" ry="2" stroke="#fff" strokeWidth={2} fill="none" />
-      <Path d="M8 21h8M12 17v4" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </Svg>
-  );
-}
-
-function ShareIcon() {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24">
-      <Path
-        d="M4 12 V20 A2 2 0 0 0 6 22 H18 A2 2 0 0 0 20 20 V12"
-        stroke="#fff"
-        strokeWidth={1.8}
-        strokeLinecap="round"
-        fill="none"
-      />
-      <Path
-        d="M16 6 L12 2 L8 6"
-        stroke="#fff"
-        strokeWidth={1.8}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <Path d="M12 2 L12 15" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" fill="none" />
-    </Svg>
-  );
-}
-
-function QueueIcon() {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24">
-      <Path d="M3 6 H21" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" />
-      <Path d="M3 12 H21" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" />
-      <Path d="M3 18 H15" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" />
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Rect x="4" y="5" width="16" height="5" rx="2.5" stroke={color} strokeWidth={1.8} />
+      <Path d="M4 14.5 H20 M4 19.5 H20" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
     </Svg>
   );
 }
@@ -246,6 +218,16 @@ export default function FullScreenPlayer() {
   const toggleLike = usePlayerStore(s => s.toggleLike);
 
   const fspTrackId = currentTrack?.id ? String(currentTrack.id) : '';
+  const currentTrackAsSong: SubsonicSong | null = currentTrack ? {
+    id: String(currentTrack.id),
+    title: currentTrack.title ?? '',
+    artist: currentTrack.artist ?? '',
+    artistId: (currentTrack as any).artistId ? String((currentTrack as any).artistId) : undefined,
+    album: currentTrack.album ?? '',
+    albumId: (currentTrack as any).albumId ? String((currentTrack as any).albumId) : undefined,
+    coverArt: currentTrack.coverArt ? String(currentTrack.coverArt) : undefined,
+    duration: currentTrack.duration ?? 0,
+  } : null;
   const isLiked = fspTrackId ? (localLikeOverrides[fspTrackId] ?? likedSongIds.has(fspTrackId)) : false;
   const useWaveformScrubber = useSettingsStore(s => s.useWaveformScrubber);
 
@@ -264,6 +246,21 @@ export default function FullScreenPlayer() {
   }, [currentTrack?.id]);
   useEffect(() => { repeatModeRef.current = repeatMode; }, [repeatMode]);
 
+  // Background lyrics pre-fetch — undefined=loading (hides card), null=no lyrics, data=ready.
+  useEffect(() => {
+    if (!currentTrack?.id) { setLyricsData(null); return; }
+    setLyricsData(undefined);
+    let cancelled = false;
+    getLyricsBySongId(
+      String(currentTrack.id),
+      currentTrack.artist,
+      currentTrack.title,
+      currentTrack.duration,
+    ).then(data => { if (!cancelled) setLyricsData(data); })
+     .catch(() => { if (!cancelled) setLyricsData(null); });
+    return () => { cancelled = true; };
+  }, [currentTrack?.id, currentTrack?.artist, currentTrack?.title, currentTrack?.duration]);
+
   const translateY = useRef(new Animated.Value(SH)).current;
   const [visible, setVisible] = useState(false);
   const coverScale = useRef(new Animated.Value(0.88)).current;
@@ -272,6 +269,9 @@ export default function FullScreenPlayer() {
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekValue, setSeekValue] = useState(0);
   const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
+  const [songOptionsVisible, setSongOptionsVisible] = useState(false);
+  const [lyricsData, setLyricsData] = useState<LyricsData | undefined>(undefined);
+  const [lyricsVisible, setLyricsVisible] = useState(false);
   const inPlaylist = fspTrackId ? playlistSongIds.has(fspTrackId) : false;
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -433,6 +433,17 @@ export default function FullScreenPlayer() {
     }, 300);
   }, [handleClose, navigation]);
 
+  const handleNavigateAlbumFromPlayer = useCallback((albumId: string) => {
+    setSongOptionsVisible(false);
+    handleClose();
+    setTimeout(() => {
+      navigation.navigate('Main', {
+        screen: 'Library',
+        params: {screen: 'AlbumDetail', params: {albumId}},
+      } as any);
+    }, 350);
+  }, [handleClose, navigation]);
+
   const openQueue = useCallback(() => {
     setQueueVisible(true);
     queueSlideY.setValue(SH);
@@ -456,6 +467,20 @@ export default function FullScreenPlayer() {
   if (!currentTrack) return null;
 
   const dur = currentTrack.duration ?? 1;
+
+  // Current active lyrics line shown in the preview card.
+  const lyricsPreview = (() => {
+    if (!lyricsData?.lines.length) return '';
+    const posMs = position * 1000;
+    let idx = 0;
+    if (lyricsData.synced) {
+      for (let i = 0; i < lyricsData.lines.length; i++) {
+        if ((lyricsData.lines[i].start ?? 0) <= posMs) { idx = i; }
+        else break;
+      }
+    }
+    return lyricsData.lines[idx].value;
+  })();
   const displayProgress = isSeeking ? seekValue : position;
 
   return (
@@ -484,7 +509,7 @@ export default function FullScreenPlayer() {
                 {currentPlaylistName || currentTrack.album || t.library.title}
               </Text>
             </View>
-            <TouchableOpacity hitSlop={HIT}>
+            <TouchableOpacity hitSlop={HIT} onPress={() => setSongOptionsVisible(true)}>
               <DotsMenuIcon />
             </TouchableOpacity>
           </View>
@@ -519,56 +544,59 @@ export default function FullScreenPlayer() {
           {/* ── Track Info + Like ── */}
           <View style={styles.infoRow}>
             <View style={styles.infoText}>
-            <TextTicker
-              style={styles.trackTitle}
-              duration={8000}
-              loop
-              bounce={false}
-              repeatSpacer={50}
-              marqueeDelay={2000}>
-              {currentTrack.title}
-            </TextTicker>
-            <Text style={styles.trackArtist} numberOfLines={1}>
-              {(currentTrack.artist ?? '')
-                .split(/,\s+|\s+feat\.?\s+|\s+ft\.?\s+/i)
-                .map((name, i) => (
-                  <React.Fragment key={i}>
-                    {i > 0 && ', '}
-                    <Text
-                      onPress={() => onArtistPress(name.trim(), i === 0 ? currentTrack.artistId : undefined)}
-                      suppressHighlighting>
-                      {name.trim()}
-                    </Text>
-                  </React.Fragment>
-                ))}
-            </Text>
-          </View>
-          <View style={styles.infoActions}>
-            <TouchableOpacity
-              onPress={() => setPlaylistSheetOpen(true)}
-              hitSlop={HIT}>
-              <Svg width={26} height={26} viewBox="0 0 26 26">
-                {inPlaylist ? (
-                  <>
-                    <Circle cx={13} cy={13} r={12} fill="#1ED760" />
-                    <Path d="M7.5 13.5 L11 17 L18.5 9.5" stroke="#000" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                  </>
-                ) : (
-                  <>
-                    <Circle cx={13} cy={13} r={11.5} stroke="#B3B3B3" strokeWidth={1.5} fill="none" />
-                    <Path d="M13 8 L13 18 M8 13 L18 13" stroke="#B3B3B3" strokeWidth={1.8} strokeLinecap="round" fill="none" />
-                  </>
-                )}
-              </Svg>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleToggleLike} hitSlop={HIT}>
-              <HeartIcon
-                size={26}
-                color={isLiked ? '#E8553E' : 'rgba(255,255,255,0.6)'}
-                filled={isLiked}
-              />
-            </TouchableOpacity>
-          </View>
+              <TextTicker
+                style={styles.trackTitle}
+                duration={8000}
+                loop
+                bounce={false}
+                repeatSpacer={50}
+                marqueeDelay={2000}>
+                {currentTrack.title}
+              </TextTicker>
+              <Text style={styles.trackArtist} numberOfLines={1}>
+                {(currentTrack.artist ?? '')
+                  .split(/,\s+|\s+feat\.?\s+|\s+ft\.?\s+/i)
+                  .map((name, i) => (
+                    <React.Fragment key={i}>
+                      {i > 0 && ', '}
+                      <Text
+                        onPress={() => onArtistPress(name.trim(), i === 0 ? currentTrack.artistId : undefined)}
+                        suppressHighlighting>
+                        {name.trim()}
+                      </Text>
+                    </React.Fragment>
+                  ))}
+              </Text>
+            </View>
+            <View style={styles.infoActions}>
+              <TouchableOpacity hitSlop={HIT} onPress={openQueue}>
+                <QueueIcon />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setPlaylistSheetOpen(true)}
+                hitSlop={HIT}>
+                <Svg width={26} height={26} viewBox="0 0 26 26">
+                  {inPlaylist ? (
+                    <>
+                      <Circle cx={13} cy={13} r={12} fill="#1ED760" />
+                      <Path d="M7.5 13.5 L11 17 L18.5 9.5" stroke="#000" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                    </>
+                  ) : (
+                    <>
+                      <Circle cx={13} cy={13} r={11.5} stroke="#B3B3B3" strokeWidth={1.5} fill="none" />
+                      <Path d="M13 8 L13 18 M8 13 L18 13" stroke="#B3B3B3" strokeWidth={1.8} strokeLinecap="round" fill="none" />
+                    </>
+                  )}
+                </Svg>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleToggleLike} hitSlop={HIT}>
+                <HeartIcon
+                  size={26}
+                  color={isLiked ? '#E8553E' : 'rgba(255,255,255,0.6)'}
+                  filled={isLiked}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* ── Progress ── */}
@@ -628,28 +656,21 @@ export default function FullScreenPlayer() {
             </TouchableOpacity>
           </View>
 
-          {/* ── Secondary Bar ── */}
-          <View style={styles.secondaryBar}>
-            <TouchableOpacity hitSlop={HIT}>
-              <DevicesIcon />
-            </TouchableOpacity>
-            <View style={styles.secondaryRight}>
-              <TouchableOpacity hitSlop={HIT}>
-                <ShareIcon />
-              </TouchableOpacity>
-              <TouchableOpacity hitSlop={HIT} style={styles.queueBtn} onPress={openQueue}>
-                <QueueIcon />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* ── Lyrics Peek ── */}
-          <View style={styles.lyricsCard}>
+          {/* ── Lyrics Peek — always visible; clickable only when lyrics are loaded ── */}
+          <TouchableOpacity
+            style={styles.lyricsCard}
+            onPress={() => setLyricsVisible(true)}
+            activeOpacity={lyricsData && lyricsData.lines.length > 0 ? 0.75 : 1}
+            disabled={!lyricsData || lyricsData.lines.length === 0}>
             <Text style={styles.lyricsTitle}>{t.fullScreenPlayer.lyricsTitle}</Text>
-            <Text style={styles.lyricsText} numberOfLines={2}>
-              {'I, I did it all\nI, I did it all\nI owned every second that this world could give'}
-            </Text>
-          </View>
+            {lyricsData === undefined ? (
+              <ActivityIndicator size="small" color="rgba(255,255,255,0.5)" style={styles.lyricsLoader} />
+            ) : lyricsData === null ? (
+              <Text style={styles.lyricsTextDim}>{t.lyricsScreen.noLyrics}</Text>
+            ) : (
+              <Text style={styles.lyricsText} numberOfLines={1}>{lyricsPreview}</Text>
+            )}
+          </TouchableOpacity>
 
         </SafeAreaView>
 
@@ -670,6 +691,22 @@ export default function FullScreenPlayer() {
 
         <Toast visible={toastVisible} message={toastMessage} />
 
+        <SongOptionsSheet
+          visible={songOptionsVisible}
+          onClose={() => setSongOptionsVisible(false)}
+          track={currentTrackAsSong}
+          onToast={showToast}
+          onNavigateAlbum={handleNavigateAlbumFromPlayer}
+          onNavigateArtist={(id, name) => { setSongOptionsVisible(false); onArtistPress(name, id); }}
+        />
+
+        <LyricsScreen
+          visible={lyricsVisible}
+          onClose={() => setLyricsVisible(false)}
+          lyrics={lyricsData ?? null}
+          coverArtId={currentTrack?.coverArt ? String(currentTrack.coverArt) : undefined}
+        />
+
       </Animated.View>
     </Modal>
   );
@@ -682,7 +719,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
   },
-  iconWrap: {alignItems: 'center'},
+  iconWrap: {alignItems: 'center', minHeight: 28},
   ambientBg: {backgroundColor: '#121212'},
   ambientBgClip: {backgroundColor: '#121212', overflow: 'hidden'},
   ambientImg: {transform: [{scale: 1.5}]},
@@ -697,8 +734,6 @@ const styles = StyleSheet.create({
     zIndex: 9999,
     backgroundColor: 'rgba(0,0,0,0.01)',
   },
-  queueBtn: {marginLeft: 24},
-
   // Header
   header: {
     flexDirection: 'row',
@@ -725,13 +760,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Cover
+  // Cover — fixed height so the controls below stay at a predictable position
   coverSection: {
-    flex: 1,
+    height: COVER_SIZE + 24,
     width: '100%',
     overflow: 'hidden',
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 6,
     justifyContent: 'center',
   },
   carouselTrack: {
@@ -757,13 +792,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 16,
+    marginTop: 8,
   },
   infoText: {
     flex: 1,
-    marginRight: 12,
+    marginRight: 16,
   },
   infoActions: {
+    alignItems: 'center',
+    gap: 10,
+  },
+  infoActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
@@ -782,7 +821,7 @@ const styles = StyleSheet.create({
 
   // Slider
   sliderSection: {
-    marginTop: 8,
+    marginTop: 4,
   },
   slider: {
     width: '100%',
@@ -805,7 +844,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
-    marginTop: 12,
+    marginTop: 8,
   },
   bigPlayBtn: {
     width: 66,
@@ -821,25 +860,14 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
 
-  // Secondary
-  secondaryBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 18,
-  },
-  secondaryRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
   // Repeat / Shuffle dots
   activeDot: {
+    position: 'absolute',
+    bottom: -6,
     width: 4,
     height: 4,
     borderRadius: 2,
     backgroundColor: darkTheme.accent,
-    marginTop: 4,
     alignSelf: 'center',
   },
   repeatOneLabel: {
@@ -862,11 +890,21 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#fff',
   },
+  lyricsLoader: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
   lyricsText: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.45)',
     marginTop: 6,
     lineHeight: 22,
+  },
+  lyricsTextDim: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.3)',
+    marginTop: 6,
+    fontStyle: 'italic',
   },
 
 });
