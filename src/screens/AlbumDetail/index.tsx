@@ -4,7 +4,7 @@
  *   and playback controls for a specific album. Supports shuffle, star/unstar,
  *   and animated parallax header.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license MIT
  */
 
@@ -45,7 +45,7 @@ import type {SubsonicSong} from '../../api/types';
 import type {LibraryStackParams} from '../../navigation/types';
 import type {Track} from '../../store/playerStore';
 import {subsonicGet, getCoverArtUrl, getStreamUrl} from '../../api/client';
-import {getArtistImage} from '../../api/lastfm';
+import {getArtistImage} from '../../api/deezer';
 import {useT, getT} from '../../i18n';
 import BackArrowIcon from '../../components/icons/BackArrowIcon';
 

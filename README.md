@@ -4,7 +4,7 @@
 
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 [![React Native](https://img.shields.io/badge/React%20Native-0.85-61DAFB?logo=react)](https://reactnative.dev)
-[![Version](https://img.shields.io/badge/version-0.9.1-orange)](https://github.com/DoodzProg/Musonic/releases)
+[![Version](https://img.shields.io/badge/version-0.9.4-orange)](https://github.com/DoodzProg/Musonic/releases)
 
 A modern, Spotify-inspired Subsonic/Navidrome client built with React Native (New Architecture).  
 Designed for OctoFiesta + Navidrome but compatible with any Subsonic-compatible server.
@@ -18,12 +18,32 @@ Designed for OctoFiesta + Navidrome but compatible with any Subsonic-compatible 
 - **Queue management** — drag-and-drop reordering, remove, move-to-top
 - **Playlist management** — create, rename, edit cover, delete; drag-and-drop track reordering
 - **Library** — albums and playlists with sort options, pin support, pull-to-refresh
-- **Artist & Album detail** — cover art, top songs, discography, artist photo
+- **Artist & Album detail** — cover art, top songs, discography, artist photo via Deezer (no API key)
 - **Home screen** — quick-access grid, filter pills (Recent, Frequent, Recommendations, Discover)
 - **Liked Songs** — star/unstar with optimistic UI and offline retry
 - **Search** — songs, artists, albums; Deezer artist images enriched asynchronously
 - **Offline resilience** — credentials and preferences persisted via MMKV
 - **i18n ready** — French and English UI strings; language switchable in Settings
+
+---
+
+## Screenshots
+
+| Home | Player (Classic) | Player (Waves) |
+|------|-----------------|----------------|
+| ![Home](docs/assets/img/screenshots/screenshot_home.jpg) | ![Player Classic](docs/assets/img/screenshots/screenshot_player_classic.jpg) | ![Player Waves](docs/assets/img/screenshots/screenshot_player_waves.jpg) |
+
+| Library | Album Detail | Artist Detail |
+|---------|-------------|---------------|
+| ![Library](docs/assets/img/screenshots/screenshot_library.jpg) | ![Album Detail](docs/assets/img/screenshots/screenshot_album_detail.jpg) | ![Artist Detail](docs/assets/img/screenshots/screenshot_artist_detail.jpg) |
+
+| Search | Queue | Lyrics |
+|--------|-------|--------|
+| ![Search](docs/assets/img/screenshots/screenshot_search.jpg) | ![Queue](docs/assets/img/screenshots/screenshot_queue.jpg) | ![Lyrics](docs/assets/img/screenshots/screenshot_lyrics.jpg) |
+
+| Playlist Options | Playlist Edit | Settings | Sidebar |
+|-----------------|---------------|----------|---------|
+| ![Playlist Options](docs/assets/img/screenshots/screenshot_playlist_options.jpg) | ![Playlist Edit](docs/assets/img/screenshots/screenshot_playlist_edit.jpg) | ![Settings](docs/assets/img/screenshots/screenshot_settings.jpg) | ![Sidebar](docs/assets/img/screenshots/screenshot_sidebar.jpg) |
 
 ---
 
@@ -33,7 +53,7 @@ Designed for OctoFiesta + Navidrome but compatible with any Subsonic-compatible 
 |------|---------|
 | Node.js | ≥ 22.11.0 (see `.nvmrc`) |
 | React Native | 0.85 (New Architecture / Fabric enabled) |
-| JDK | 17 (Microsoft OpenJDK recommended) |
+| JDK | 21 (Temurin recommended) |
 | Android SDK | 34 or 36 |
 | NDK | 27.1 |
 | Navidrome | any recent version (or OctoFiesta proxy) |
@@ -53,15 +73,13 @@ nvm use          # reads .nvmrc
 # 3. Install JS dependencies
 npm install
 
-# 4. Configure API keys (see API Keys section)
-cp src/api/apiKeys.example.ts src/api/apiKeys.ts
-# Edit src/api/apiKeys.ts and fill in your Last.fm key
-
-# 5. Run on Android (device or emulator)
+# 4. Run on Android (device or emulator)
 adb reverse tcp:8081 tcp:8081
 npm start -- --reset-cache   # Terminal 1 — Metro bundler
 npm run android               # Terminal 2
 ```
+
+> No API keys required — Deezer public API is used for artist images without authentication.
 
 ### iOS (macOS only)
 
@@ -101,46 +119,24 @@ Musonic handles `ext-deezer:` prefixed IDs transparently — no client-side ID m
 
 ---
 
-## Last.fm Configuration
+## CI/CD
 
-Musonic uses Last.fm in two distinct ways:
+Musonic uses GitHub Actions for automated builds:
 
-### 1. Client-side — Artist images (temporary)
+| Workflow | Trigger | Output |
+|----------|---------|--------|
+| `android-release.yml` | Push tag `v*` or manual | Signed release APK |
+| `ios-release.yml` | Push tag `v*` or manual | Unsigned IPA (sideload via AltStore/Sideloadly) |
+| `ci.yml` | PR to `main` / push to `develop` | Lint + type check |
 
-The Last.fm REST API is called directly from the client to fetch artist cover photos when Subsonic provides none. This requires a free Last.fm API key stored in `src/api/apiKeys.ts` (git-ignored).
+**Required GitHub Secrets** (Settings → Secrets → Actions):
 
-> **Note:** This will be replaced by Deezer in v0.9.4 (no API key will be required).
-
-To get a Last.fm API key:
-1. Create a free account at [last.fm](https://www.last.fm)
-2. Go to [https://www.last.fm/api/account/create](https://www.last.fm/api/account/create)
-3. Copy the **API key** and paste it into `src/api/apiKeys.ts`:
-
-```typescript
-export const LASTFM_API_KEY = 'your_api_key_here';
-```
-
-### 2. Server-side — Recommendations (Navidrome admin config)
-
-The Recommendations feature (v0.10.0) uses `getSimilarSongs2` from the Subsonic API, which internally calls Last.fm. This does **not** require a client-side API key — it must be configured **once** on the Navidrome server by an admin:
-
-1. Log in to Navidrome admin UI (`/app`)
-2. Go to **Settings → External Integrations**
-3. Enter your Last.fm API key and secret
-4. Save — Navidrome will now scrobble plays and fetch similar-song data
-
----
-
-## API Keys
-
-| Key | Where | Purpose | Required |
-|-----|-------|---------|----------|
-| `LASTFM_API_KEY` | `src/api/apiKeys.ts` | Artist cover images (client) | Optional (images fall back to initials) |
-
-```
-src/api/apiKeys.example.ts   ← committed, template only, no real keys
-src/api/apiKeys.ts           ← git-ignored, your actual keys
-```
+| Secret | Value |
+|--------|-------|
+| `KEYSTORE_BASE64` | Base64-encoded `musonic-release.keystore` |
+| `KEYSTORE_PASSWORD` | Keystore password |
+| `KEY_ALIAS` | `musonic` |
+| `KEY_PASSWORD` | Same as `KEYSTORE_PASSWORD` (PKCS12) |
 
 ---
 
@@ -168,8 +164,8 @@ src/
 ├── api/
 │   ├── client.ts          Subsonic axios client, URL helpers
 │   ├── types.ts           TypeScript type definitions
-│   ├── lastfm.ts          Last.fm artist-image helper (→ Deezer in v0.9.4)
-│   ├── apiKeys.example.ts API key template (copy → apiKeys.ts)
+│   ├── deezer.ts          Deezer public API — artist image helper (no key required)
+│   ├── apiKeys.example.ts API key template (no keys currently required)
 │   └── endpoints/
 │       ├── library.ts     getRecentAlbums, getStarred, star/unstar, similar songs
 │       ├── playlists.ts   CRUD playlist operations
@@ -230,7 +226,7 @@ Conçu pour OctoFiesta + Navidrome, mais compatible avec tout serveur compatible
 - **File d'attente** — réorganisation drag-and-drop, suppression, monter en tête
 - **Gestion des playlists** — créer, renommer, modifier la pochette, supprimer ; réorganisation drag-and-drop
 - **Bibliothèque** — albums et playlists avec tri, épinglage, pull-to-refresh
-- **Détail Artiste & Album** — pochette, titres populaires, discographie, photo artiste
+- **Détail Artiste & Album** — pochette, titres populaires, discographie, photo artiste via Deezer (sans clé API)
 - **Accueil** — grille d'accès rapide, filtres (Récent, Fréquent, Recommandations, À découvrir)
 - **Titres likés** — aimer/dé-liker avec UI optimiste et retry hors-ligne
 - **Recherche** — titres, artistes, albums ; images artiste Deezer enrichies de façon asynchrone
@@ -245,7 +241,7 @@ Conçu pour OctoFiesta + Navidrome, mais compatible avec tout serveur compatible
 |-------|---------|
 | Node.js | ≥ 22.11.0 (voir `.nvmrc`) |
 | React Native | 0.85 (New Architecture / Fabric activée) |
-| JDK | 17 (Microsoft OpenJDK recommandé) |
+| JDK | 21 (Temurin recommandé) |
 | Android SDK | 34 ou 36 |
 | NDK | 27.1 |
 | Navidrome | toute version récente (ou proxy OctoFiesta) |
@@ -265,15 +261,13 @@ nvm use
 # 3. Installer les dépendances JS
 npm install
 
-# 4. Configurer les clés API (voir section Clés API)
-cp src/api/apiKeys.example.ts src/api/apiKeys.ts
-# Éditer src/api/apiKeys.ts et renseigner votre clé Last.fm
-
-# 5. Lancer sur Android (appareil ou émulateur)
+# 4. Lancer sur Android (appareil ou émulateur)
 adb reverse tcp:8081 tcp:8081
 npm start -- --reset-cache   # Terminal 1 — Metro bundler
 npm run android               # Terminal 2
 ```
+
+> Aucune clé API requise — l'API publique Deezer est utilisée pour les images artiste sans authentification.
 
 ### iOS (macOS uniquement)
 
@@ -311,44 +305,15 @@ Les IDs préfixés `ext-deezer:` sont gérés de façon transparente — aucune 
 
 ---
 
-## Configuration Last.fm
+## CI/CD
 
-### 1. Côté client — Images artiste (temporaire)
+Musonic utilise GitHub Actions pour les builds automatisés :
 
-L'API REST Last.fm est appelée depuis le client pour récupérer les photos d'artiste quand Subsonic n'en fournit pas. Nécessite une clé API Last.fm gratuite dans `src/api/apiKeys.ts` (ignoré par git).
-
-> **Note :** Sera remplacé par Deezer dans la v0.9.4 (aucune clé API ne sera nécessaire).
-
-Pour obtenir une clé API Last.fm :
-1. Créer un compte gratuit sur [last.fm](https://www.last.fm)
-2. Aller sur [https://www.last.fm/api/account/create](https://www.last.fm/api/account/create)
-3. Copier la **clé API** et la coller dans `src/api/apiKeys.ts` :
-
-```typescript
-export const LASTFM_API_KEY = 'votre_cle_api_ici';
-```
-
-### 2. Côté serveur — Recommandations (config admin Navidrome)
-
-La fonctionnalité de recommandations (v0.10.0) utilise `getSimilarSongs2` de l'API Subsonic, qui interroge Last.fm en interne. Cela ne nécessite **pas** de clé côté client — à configurer **une fois** sur le serveur Navidrome par un administrateur :
-
-1. Se connecter à l'UI admin Navidrome (`/app`)
-2. Aller dans **Paramètres → Intégrations externes**
-3. Renseigner votre clé API et secret Last.fm
-4. Sauvegarder — Navidrome scrobblera les lectures et récupérera les données de titres similaires
-
----
-
-## Clés API
-
-| Clé | Emplacement | Utilité | Obligatoire |
-|-----|-------------|---------|-------------|
-| `LASTFM_API_KEY` | `src/api/apiKeys.ts` | Images artiste (client) | Non (repli sur initiales) |
-
-```
-src/api/apiKeys.example.ts   ← commité, modèle uniquement, sans vraies clés
-src/api/apiKeys.ts           ← ignoré par git, vos vraies clés
-```
+| Workflow | Déclencheur | Résultat |
+|----------|-------------|----------|
+| `android-release.yml` | Push tag `v*` ou manuel | APK release signé |
+| `ios-release.yml` | Push tag `v*` ou manuel | IPA non signé (sideload via AltStore/Sideloadly) |
+| `ci.yml` | PR vers `main` / push sur `develop` | Lint + vérification de types |
 
 ---
 
@@ -376,8 +341,8 @@ src/
 ├── api/
 │   ├── client.ts          Client axios Subsonic, helpers URL
 │   ├── types.ts           Définitions de types TypeScript
-│   ├── lastfm.ts          Helper images artiste Last.fm (→ Deezer en v0.9.4)
-│   ├── apiKeys.example.ts Modèle de clés API (copier → apiKeys.ts)
+│   ├── deezer.ts          API publique Deezer — helper images artiste (sans clé)
+│   ├── apiKeys.example.ts Modèle de clés API (aucune clé requise actuellement)
 │   └── endpoints/
 │       ├── library.ts     getRecentAlbums, getStarred, star/unstar, titres similaires
 │       ├── playlists.ts   Opérations CRUD playlists

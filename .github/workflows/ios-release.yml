@@ -1,11 +1,13 @@
 name: iOS Release IPA
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
 
-# Inspired by azusa-player-mobile (lovegaoshi/azusa-player-mobile)
-# Builds an unsigned IPA suitable for sideloading (AltStore / SideStore).
-# For App Store distribution, add a valid provisioning profile and signing identity.
+# Builds an unsigned IPA suitable for sideloading (AltStore / SideStore / Sideloadly).
+# Inspired by azusa-player-mobile (lovegaoshi/azusa-player-mobile).
 
 jobs:
   build-ios:

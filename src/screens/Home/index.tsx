@@ -5,7 +5,7 @@
  *   section of similar artists. Supports filter pills, pull-to-refresh, and
  *   auto-recovery when connectivity is restored.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license MIT
  */
 
@@ -31,7 +31,7 @@ import {
   getSimilarArtists,
 } from '../../api/endpoints/library';
 import {getPlaylists} from '../../api/endpoints/playlists';
-import {getArtistImage} from '../../api/lastfm';
+import {getArtistImage} from '../../api/deezer';
 import {getStreamUrl, getCoverArtUrl} from '../../api/client';
 import {loadAndPlayAlbum, loadAndPlayTracks} from '../../services/playerActions';
 import { usePlayerStore, type Track } from '../../store/playerStore';

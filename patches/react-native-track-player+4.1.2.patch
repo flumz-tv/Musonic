@@ -444,9 +444,10 @@ index b2409a0..50347e9 100644
      }
  }
 diff --git a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
+index 0000000..0000000 100644
 --- a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
 +++ b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
-@@ -742,14 +742,14 @@ class MusicService : HeadlessJsTaskService() {
+@@ -742,16 +742,16 @@ class MusicService : HeadlessJsTaskService() {
      @MainThread
      private fun emit(event: String, data: Bundle? = null) {
 -        reactNativeHost.reactInstanceManager.currentReactContext

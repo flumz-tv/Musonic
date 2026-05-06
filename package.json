@@ -1,6 +1,6 @@
 {
   "name": "Musonic",
-  "version": "0.9.1",
+  "version": "0.9.4",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
