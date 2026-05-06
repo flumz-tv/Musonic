@@ -36,7 +36,7 @@ jobs:
 
       - name: Write keystore.properties
         run: |
-          cat > android/keystore.properties <<EOF
+          cat > android/keystore.properties <<'EOF'
           storeFile=musonic-release.keystore
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
