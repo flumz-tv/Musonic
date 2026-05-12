@@ -7,7 +7,7 @@
  * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
-import React, {useEffect} from 'react';
+import {useEffect} from 'react';
 import {useActiveTrack, usePlaybackState, State} from 'react-native-track-player';
 import {usePlayerStore} from '../store/playerStore';
 import {star, unstar} from '../api/endpoints/library';

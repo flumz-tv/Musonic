@@ -152,7 +152,7 @@ export default function HomeScreen() {
       ]);
 
       const deezerRecoAlbums = homeDedupeAlbums(
-        deezerEnriched.filter(t => !t.isSingle),
+        deezerEnriched.filter(tr => !tr.isSingle),
       ).slice(0, 10);
 
       const recentIdSet = new Set(recent.map(a => a.id));

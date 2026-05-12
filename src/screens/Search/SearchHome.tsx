@@ -209,14 +209,14 @@ export default function SearchHome() {
       const ss2Enriched = allEnriched.slice(offset, offset + ss2Raw.length);
 
       // ── Build sections ─────────────────────────────────────────────────────
-      const likedAlbums = dedupeAlbums(likedEnriched.filter(t => !t.isSingle)).slice(0, 10);
+      const likedAlbums = dedupeAlbums(likedEnriched.filter(tr => !tr.isSingle)).slice(0, 10);
       // Show all liked tracks (not just singles) so users can play any of them directly
       const likedTracks = likedEnriched.slice(0, 20);
       const recentTracks = dedupeAlbums(recentEnriched).slice(0, 15);
 
       const buildSameStyleSection = (name: string, enriched: DeezerTrack[]): SameStyleSection => ({
         artistName: name,
-        albums: dedupeAlbums(enriched.filter(t => !t.isSingle)).slice(0, 4),
+        albums: dedupeAlbums(enriched.filter(tr => !tr.isSingle)).slice(0, 4),
         tracks: enriched.slice(0, 6),
       });
 

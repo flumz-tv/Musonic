@@ -136,7 +136,6 @@ export default function LyricsScreen({visible, onClose, lyrics, coverArtId}: Pro
   const {state} = usePlaybackState();
   const isPlaying = state === State.Playing;
   const {position} = useProgress();
-  const isShuffled = usePlayerStore(s => s.isShuffled);
   const shuffleMode = usePlayerStore(s => s.shuffleMode);
   const repeatMode = usePlayerStore(s => s.repeatMode);
   const togglePlay = usePlayerStore(s => s.togglePlay);

@@ -389,7 +389,7 @@ function PlaylistHeader({
   playlistName,
   songCount,
   totalDuration,
-  isShuffled,
+  isShuffled: _isShuffled,
   shuffleMode,
   isThisPlaylistActive,
   isGlobalPlaying,
@@ -800,7 +800,7 @@ export default function PlaylistDetailScreen() {
     })();
 
     return () => { cancelled = true; };
-  }, [songs, isOfflineMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [songs, isOfflineMode]);
 
   const handlePlay = useCallback(async () => {
     if (isThisPlaylistActive) {
@@ -1155,7 +1155,6 @@ export default function PlaylistDetailScreen() {
             {useNativeDriver: false},
           )}
           scrollEventThrottle={16}
-          estimatedItemSize={64}
         />
       )}
 

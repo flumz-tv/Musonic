@@ -201,6 +201,7 @@ export default function AddToPlaylistSheet({
       translateY.value = withTiming(SHEET_HEIGHT, {duration: 260, easing: Easing.in(Easing.cubic)});
       overlayOpacity.value = withTiming(0, {duration: 180});
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, loadPlaylists]);
 
   const handleToggle = useCallback(

@@ -1,90 +1,130 @@
 # Musonic
 
-🌍 **English** | [Lire en Français](#français)
-
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 [![React Native](https://img.shields.io/badge/React%20Native-0.85-61DAFB?logo=react)](https://reactnative.dev)
 [![Version](https://img.shields.io/badge/version-1.0.0-orange)](https://github.com/DoodzProg/Musonic/releases)
 
-A modern, Spotify-inspired Subsonic/Navidrome client built with React Native (New Architecture).  
-Designed for OctoFiesta + Navidrome but compatible with any Subsonic-compatible server.
+A Spotify-inspired mobile client for Navidrome and Subsonic-compatible servers, built with React Native (New Architecture). Own your music. Own your experience.
+
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation — Android](#installation--android)
+  - [Installation — iOS](#installation--ios-macos-only)
+- [Server Setup](#server-setup)
+  - [Navidrome (standard)](#navidrome-standard)
+  - [OctoFiesta (optional)](#octofiesta-optional)
+- [CI/CD](#cicd)
+- [Building a Signed APK](#building-a-signed-apk)
+- [Project Structure](#project-structure)
+- [Architecture Notes](#architecture-notes)
+- [Known Limitations](#known-limitations)
+- [License](#license)
 
 ---
 
 ## Features
 
-- **Full-screen player** — ambient halo background, animated cover art, waveform scrubber
-- **Mini player** — sticky bottom bar with swipe-to-skip gesture
+### Playback
+- **Full-screen player** — ambient halo background extracted from album art, animated cover, waveform / classic scrubber toggle
+- **Mini player** — persistent bottom bar with swipe-to-skip gesture
 - **Queue management** — drag-and-drop reordering, remove, move-to-top
-- **Playlist management** — create, rename, edit cover, delete; drag-and-drop track reordering
-- **Library** — albums and playlists with sort options, pin support, pull-to-refresh
-- **Artist & Album detail** — cover art, top songs, discography, artist photo via Deezer (no API key)
-- **Home screen** — quick-access grid, filter pills (Recent, Frequent, Recommendations, Discover)
-- **Liked Songs** — star/unstar with optimistic UI and offline retry
-- **Search** — songs, artists, albums; Discover tab with Deezer-powered recommendations (6 sections)
-- **Offline mode (Beta)** — manual or auto-detected via connectivity ping; playlist and track metadata cached for local playback
-- **Track downloads** — save Navidrome tracks to device; delete individually or by full playlist
+- **Crossfade** — configurable fade between tracks
+- **Repeat** — off / all / one
+- **Shuffle** — standard shuffle + Shuffle Magic (genre-aware third state, powered by Deezer recommendations)
 - **Autoplay** — automatic queue extension with Deezer + Navidrome similar tracks when queue ends
-- **Shuffle Magic** — genre-aware third shuffle state powered by Deezer recommendations
-- **i18n ready** — French and English UI strings; language switchable in Settings
+- **Synced lyrics** — real-time line-by-line highlight; Navidrome embedded lyrics with LRCLIB as fallback
+- **Lock screen & media notification** — full playback controls from Android lock screen and notification shade
+
+### Library & Discovery
+- **Library** — albums, playlists, and Liked Songs with sort options, pin support, pull-to-refresh
+- **Home screen** — quick-access grid, filter pills: All, Recent, Frequent, Recommendations, Discover
+- **Artist detail** — artist photo via Deezer public API (no key required), top songs, full discography, "Similar artists" album cards
+- **Album detail** — dominant-color gradient header, full track listing, star/unstar
+- **Liked Songs** — star/unstar from anywhere with optimistic UI and offline retry queue
+- **Search** — full-text songs, artists, and albums; Discover tab with Deezer-powered recommendations across 6 sections
+
+### Playlists
+- Create, rename, edit cover, delete
+- Drag-and-drop track reordering with inline search
+- Recommendation footer — Deezer tracks based on the playlist's top artists
+- Add/remove tracks from any playlist via contextual option sheet
+
+### Offline Mode & Downloads
+- **Offline mode (Beta)** — manual toggle or auto-detected via server ping; Library and Playlist Detail load from local cache when offline
+- **Track downloads** — download individual tracks or entire playlists to device storage for offline playback (Navidrome-indexed tracks only)
+- **Download management** — delete individual downloads or full playlist batches; total storage usage displayed in the side drawer
+- **Shuffle intercept** — Shuffle Magic automatically falls back to standard shuffle when offline
+
+### Infrastructure
+- **MMKV persistence** — credentials, preferences, download index, and playlist cache survive app restarts at native speed
+- **Connectivity monitor** — periodic background ping with automatic online/offline state propagation
+- **i18n** — French and English UI, switchable from Settings
+- **React Native New Architecture** — Fabric + JSI; no legacy bridge
 
 ---
 
 ## Screenshots
 
-| Home | Player (Classic) | Player (Waves) |
-|------|-----------------|----------------|
-| ![Home](docs/assets/img/screenshots/screenshot_home.jpg) | ![Player Classic](docs/assets/img/screenshots/screenshot_player_classic.jpg) | ![Player Waves](docs/assets/img/screenshots/screenshot_player_waves.jpg) |
+| Player (Waves) | Player (Classic) | Synced Lyrics |
+|---|---|---|
+| ![Player Waves](docs/assets/img/screenshots/player_waveform_downloaded.jpg) | ![Player Classic](docs/assets/img/screenshots/player_classic.jpg) | ![Lyrics](docs/assets/img/screenshots/lyrics.jpg) |
 
-| Library | Album Detail | Artist Detail |
-|---------|-------------|---------------|
-| ![Library](docs/assets/img/screenshots/screenshot_library.jpg) | ![Album Detail](docs/assets/img/screenshots/screenshot_album_detail.jpg) | ![Artist Detail](docs/assets/img/screenshots/screenshot_artist_detail.jpg) |
+| Home | Search · Discover | Queue · Shuffle Magic |
+|---|---|---|
+| ![Home](docs/assets/img/screenshots/home.jpg) | ![Search Discover](docs/assets/img/screenshots/search_discover.jpg) | ![Queue Shuffle Magic](docs/assets/img/screenshots/queue_shuffle_magic.jpg) |
 
-| Search | Queue | Lyrics |
-|--------|-------|--------|
-| ![Search](docs/assets/img/screenshots/screenshot_search.jpg) | ![Queue](docs/assets/img/screenshots/screenshot_queue.jpg) | ![Lyrics](docs/assets/img/screenshots/screenshot_lyrics.jpg) |
+| Library | Artist Detail | Album Detail |
+|---|---|---|
+| ![Library](docs/assets/img/screenshots/library.jpg) | ![Artist Detail](docs/assets/img/screenshots/artist_detail.jpg) | ![Album Detail](docs/assets/img/screenshots/album_detail.jpg) |
 
-| Playlist Options | Playlist Edit | Settings | Sidebar |
-|-----------------|---------------|----------|---------|
-| ![Playlist Options](docs/assets/img/screenshots/screenshot_playlist_options.jpg) | ![Playlist Edit](docs/assets/img/screenshots/screenshot_playlist_edit.jpg) | ![Settings](docs/assets/img/screenshots/screenshot_settings.jpg) | ![Sidebar](docs/assets/img/screenshots/screenshot_sidebar.jpg) |
-
----
-
-## Requirements
-
-| Tool | Version |
-|------|---------|
-| Node.js | ≥ 22.11.0 (see `.nvmrc`) |
-| React Native | 0.85 (New Architecture / Fabric enabled) |
-| JDK | 21 (Temurin recommended) |
-| Android SDK | 34 or 36 |
-| NDK | 27.1 |
-| Navidrome | any recent version (or OctoFiesta proxy) |
+| Playlist (Downloaded) | Offline Sidebar | Lock Screen |
+|---|---|---|
+| ![Playlist Downloaded](docs/assets/img/screenshots/playlist_detail_downloaded.jpg) | ![Offline Mode](docs/assets/img/screenshots/drawer_offline.jpg) | ![Lock Screen](docs/assets/img/screenshots/lock_screen_player.jpg) |
 
 ---
 
-## Installation
+## Getting Started
+
+### Prerequisites
+
+| Requirement | Details |
+|---|---|
+| **Navidrome or Subsonic server** | Any recent version; OctoFiesta is optional — see [Server Setup](#server-setup) |
+| **Android device** | Android 8.0+ (API 26+) |
+| **iOS device** | iOS 15+ — sideload only via AltStore or Sideloadly |
+| **Node.js** | ≥ 22.11.0 (see `.nvmrc`) |
+| **JDK** | 21 (Temurin recommended) |
+| **Android SDK** | 34 or 36 |
+| **NDK** | 27.1 |
+
+> You do **not** need a cloud account, API key, or internet access beyond your own server. Musonic uses the Deezer public API for artist images and recommendations — no registration required.
+
+### Installation — Android
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/DoodzProg/Musonic.git
 cd Musonic
 
-# 2. Use the correct Node version
-nvm use          # reads .nvmrc
+# 2. Switch to the correct Node version
+nvm use          # reads .nvmrc (22.11.0)
 
 # 3. Install JS dependencies
 npm install
 
-# 4. Run on Android (device or emulator)
+# 4. Connect your device and launch
 adb reverse tcp:8081 tcp:8081
 npm start -- --reset-cache   # Terminal 1 — Metro bundler
 npm run android               # Terminal 2
 ```
 
-> No API keys required — Deezer public API is used for artist images without authentication.
-
-### iOS (macOS only)
+### Installation — iOS (macOS only)
 
 ```bash
 bundle install
@@ -96,67 +136,73 @@ npm run ios
 
 ## Server Setup
 
-### Standard Navidrome
+### Navidrome (standard)
 
-Point Musonic at your Navidrome instance via **Settings → Server**:
+Open Musonic, tap **Settings → Server**, and enter:
 
-```
-Server URL : https://your-navidrome-domain.tld
-Username   : your_navidrome_username
-Password   : your_navidrome_password
-```
+| Field | Value |
+|---|---|
+| Server URL | `https://your-navidrome-domain.tld` |
+| Username | your Navidrome username |
+| Password | your Navidrome password |
 
-No extra configuration required. All Subsonic API endpoints are used as-is.
+No additional configuration required. Musonic uses standard Subsonic API endpoints.
 
-### OctoFiesta (Navidrome + Deezer proxy)
+### OctoFiesta (optional)
 
-[OctoFiesta](https://github.com/DoodzProg/octo-fiesta) is a Navidrome reverse-proxy that adds on-demand Deezer streaming via the Subsonic API. Configuration is identical:
+[OctoFiesta](https://github.com/DoodzProg/octo-fiesta) is a Subsonic-compatible middleware layer that extends Navidrome with external catalog streaming. When Musonic is connected to an OctoFiesta instance, the Deezer-powered recommendation engine goes beyond surfacing discovery results — tracks, albums, and artists from the external catalog can be played directly alongside your personal library, with seamless ID routing handled transparently on both ends.
 
-```
-Server URL : https://your-octofiesta-domain.tld
-Username   : your_navidrome_username
-Password   : your_navidrome_password
-```
+Configuration is identical to a standard Navidrome setup:
 
-Musonic handles `ext-deezer:` prefixed IDs transparently — no client-side ID mangling needed. Cover art, artist images, and stream URLs all resolve correctly.
+| Field | Value |
+|---|---|
+| Server URL | `https://your-octofiesta-domain.tld` |
+| Username | your Navidrome username |
+| Password | your Navidrome password |
+
+Musonic handles `ext-deezer:` prefixed IDs automatically. Cover art, artist images, and stream URLs all resolve without any client-side configuration.
 
 ---
 
 ## CI/CD
 
-Musonic uses GitHub Actions for automated builds:
+Musonic uses GitHub Actions for automated builds and releases:
 
 | Workflow | Trigger | Output |
-|----------|---------|--------|
-| `android-release.yml` | Push tag `v*` or manual | Signed release APK |
-| `ios-release.yml` | Push tag `v*` or manual | Unsigned IPA (sideload via AltStore/Sideloadly) |
-| `ci.yml` | PR to `main` / push to `develop` | Lint + type check |
+|---|---|---|
+| `android-release.yml` | Push tag `v*` or manual dispatch | Signed release APK |
+| `ios-release.yml` | Push tag `v*` or manual dispatch | Unsigned IPA (AltStore / Sideloadly) |
+| `ci.yml` | PR to `main` | TypeScript type check |
 
 **Required GitHub Secrets** (Settings → Secrets → Actions):
 
 | Secret | Value |
-|--------|-------|
+|---|---|
 | `KEYSTORE_BASE64` | Base64-encoded `musonic-release.keystore` |
 | `KEYSTORE_PASSWORD` | Keystore password |
 | `KEY_ALIAS` | `musonic` |
 | `KEY_PASSWORD` | Same as `KEYSTORE_PASSWORD` (PKCS12) |
 
----
-
-## Build — Signed Android APK
+To trigger a release:
 
 ```bash
-# 1. Ensure keystore is configured
-# android/keystore.properties must reference your keystore file (git-ignored)
+git tag v1.0.0 && git push origin v1.0.0
+```
 
-# 2. Build release APK
+Both workflows fire automatically and attach the APK and IPA as assets on the GitHub Release.
+
+---
+
+## Building a Signed APK
+
+```bash
+# Ensure android/keystore.properties references your keystore (git-ignored)
 cd android
 ./gradlew assembleRelease
-
 # Output: android/app/build/outputs/apk/release/app-release.apk
 ```
 
-> The keystore file (`android/app/musonic-release.keystore`) and `android/keystore.properties` are git-ignored. Keep a secure backup.
+> `musonic-release.keystore` and `android/keystore.properties` are git-ignored. Keep a secure offline backup of both files — they cannot be recovered if lost.
 
 ---
 
@@ -167,13 +213,13 @@ src/
 ├── api/
 │   ├── client.ts          Subsonic fetch client, URL helpers
 │   ├── types.ts           TypeScript type definitions
-│   ├── deezer.ts          Deezer public API — recommendations, artist images (no key required)
+│   ├── deezer.ts          Deezer public API — recommendations, artist images (no key)
 │   ├── apiKeys.example.ts API key template (no keys currently required)
 │   └── endpoints/
 │       ├── library.ts     getRecentAlbums, getStarred, star/unstar, similar songs
 │       ├── playlists.ts   CRUD playlist operations
 │       └── search.ts      search() + Deezer async image enrichment
-├── components/            Shared UI (player, sheets, icons, cards…)
+├── components/            Shared UI — player, sheets, icons, cards
 ├── hooks/                 useSetupPlayer, useImageColor
 ├── i18n/                  fr.ts (source of truth) + en.ts + index.ts hook
 ├── navigation/            RootNavigator, TabNavigator, stacks, type definitions
@@ -191,190 +237,37 @@ src/
 ## Architecture Notes
 
 ### Audio Engine
-React Native Track Player 4.1.2, patched for New Architecture (37 `scope.launch` fixes). `playerStore` is the UI source of truth; RNTP is the audio source of truth. `AudioPlayer.tsx` bridges RNTP events → store.
+React Native Track Player 4.1.2, patched for New Architecture (37 `scope.launch` fixes). `playerStore` is the UI source of truth; RNTP is the audio source of truth. `AudioPlayer.tsx` bridges RNTP events → store. The `isMagic` flag is preserved across queue operations via RNTP track metadata to ensure Shuffle Magic tracks render correctly after queue mutations.
 
 ### HTTP Client
-`axios` was removed in v1.0.0. All API calls use native `fetch` with `AbortController` for cancellation and `URLSearchParams` for query string construction.
+All API calls use native `fetch` with `AbortController` for cancellation and `URLSearchParams` for query string construction. No third-party HTTP client.
 
-### Offline & Download
-`connectivityService` pings the server periodically and sets `isOfflineMode` in `settingsStore`. `playlistCacheStore` holds playlist metadata + song lists for offline access. `downloadStore` manages per-track file downloads to device storage with a semaphore (max 3 concurrent), MMKV persistence, and `getTotalSizeBytes()` for storage reporting. Only Navidrome-indexed tracks are downloadable; Deezer-sourced tracks (`ext-` prefix) are silently skipped.
+### Offline & Downloads
+`connectivityService` pings the server periodically and sets `isOfflineMode` in `settingsStore`. `playlistCacheStore` holds playlist metadata and song lists for offline access. `downloadStore` manages per-track file downloads with a semaphore (max 3 concurrent), MMKV persistence, and `getTotalSizeBytes()` for storage reporting. Only Navidrome-indexed tracks are downloadable; Deezer-sourced tracks (`ext-` prefix) are silently skipped.
 
 ### Drawer Navigation
-`@react-navigation/drawer` is **not used directly** — it caused a `WorkletsError` with react-native-reanimated v4. A custom `DrawerContainer` (React context + `Animated`) replaces it. `react-native-reanimated/plugin` must remain **last** in `babel.config.js`.
+`@react-navigation/drawer` is not used — it caused a `WorkletsError` with react-native-reanimated v4. A custom `DrawerContainer` (React context + `Animated`) replaces it. `react-native-reanimated/plugin` must remain **last** in `babel.config.js`.
 
-### Playlist Orange Indicator
-Songs turn orange only when they are playing **in the context of the open playlist** (checked via `currentPlaylistId`). Playing from album/search/liked-songs correctly clears the playlist context. Duplicate songs in a playlist are disambiguated by **RNTP track index**, not by song ID.
+### Playlist Track Indicator
+Tracks highlight only when playing from the current playlist context (checked via `currentPlaylistId`). Playing from album, search, or Liked Songs correctly clears the context. Duplicate songs in a playlist are disambiguated by RNTP queue index, not by song ID.
 
 ### New Architecture
-`newArchEnabled=true` is required in `gradle.properties`. `UIManager.setLayoutAnimationEnabledExperimental` must not be called (Fabric incompatible).
+`newArchEnabled=true` in `gradle.properties` is required. `UIManager.setLayoutAnimationEnabledExperimental` must not be called — it is incompatible with Fabric.
+
+---
+
+## Known Limitations
+
+| Issue | Status |
+|---|---|
+| iOS background audio cuts | `UIBackgroundModes: audio` missing from `Info.plist` — planned post-v1.0.0 |
+| iOS Dynamic Island header | `GlobalHeader` lacks safe-area insets; header partially hidden on notched devices |
+| iOS distribution | Unsigned IPA only — install via AltStore or Sideloadly; no App Store planned |
+| FSP swipe gesture | Removed in v1.0.0 — Android `<Modal>` + RNGH incompatibility |
 
 ---
 
 ## License
 
-This project is licensed under the [CC BY-NC 4.0](LICENSE) license.  
+This project is licensed under the [CC BY-NC 4.0](LICENSE) license.
 Free to use and adapt for personal, non-commercial purposes. Commercial use is prohibited.
-
----
-
----
-
-# Français
-
-🌍 [Read in English](#musonic) | **Français**
-
-Client Subsonic/Navidrome moderne et minimaliste, inspiré de Spotify, développé avec React Native (New Architecture).  
-Conçu pour OctoFiesta + Navidrome, mais compatible avec tout serveur compatible Subsonic.
-
----
-
-## Fonctionnalités
-
-- **Lecteur plein écran** — fond ambiant, pochette animée, scrubber waveform
-- **Mini-lecteur** — barre sticky avec geste swipe-to-skip
-- **File d'attente** — réorganisation drag-and-drop, suppression, monter en tête
-- **Gestion des playlists** — créer, renommer, modifier la pochette, supprimer ; réorganisation drag-and-drop
-- **Bibliothèque** — albums et playlists avec tri, épinglage, pull-to-refresh
-- **Détail Artiste & Album** — pochette, titres populaires, discographie, photo artiste via Deezer (sans clé API)
-- **Accueil** — grille d'accès rapide, filtres (Récent, Fréquent, Recommandations, À découvrir)
-- **Titres likés** — aimer/dé-liker avec UI optimiste et retry hors-ligne
-- **Recherche** — titres, artistes, albums ; onglet Découvrir avec recommandations Deezer (6 sections)
-- **Mode hors-ligne (Bêta)** — manuel ou auto-détecté via ping ; playlists et métadonnées mises en cache pour lecture locale
-- **Téléchargements** — sauvegarder des titres Navidrome sur l'appareil ; supprimer individuellement ou par playlist
-- **Lecture automatique** — extension automatique de la file avec des titres similaires Deezer + Navidrome
-- **Shuffle Magic** — troisième état de lecture aléatoire basé sur les recommandations Deezer
-- **i18n** — français et anglais ; langue changeante dans les Paramètres
-
----
-
-## Prérequis
-
-| Outil | Version |
-|-------|---------|
-| Node.js | ≥ 22.11.0 (voir `.nvmrc`) |
-| React Native | 0.85 (New Architecture / Fabric activée) |
-| JDK | 21 (Temurin recommandé) |
-| Android SDK | 34 ou 36 |
-| NDK | 27.1 |
-| Navidrome | toute version récente (ou proxy OctoFiesta) |
-
----
-
-## Installation
-
-```bash
-# 1. Cloner le dépôt
-git clone https://github.com/DoodzProg/Musonic.git
-cd Musonic
-
-# 2. Utiliser la bonne version de Node
-nvm use
-
-# 3. Installer les dépendances JS
-npm install
-
-# 4. Lancer sur Android (appareil ou émulateur)
-adb reverse tcp:8081 tcp:8081
-npm start -- --reset-cache   # Terminal 1 — Metro bundler
-npm run android               # Terminal 2
-```
-
-> Aucune clé API requise — l'API publique Deezer est utilisée pour les images artiste sans authentification.
-
-### iOS (macOS uniquement)
-
-```bash
-bundle install
-cd ios && bundle exec pod install && cd ..
-npm run ios
-```
-
----
-
-## Configuration serveur
-
-### Navidrome standard
-
-Configurer Musonic via **Paramètres → Serveur** :
-
-```
-URL du serveur : https://votre-domaine-navidrome.tld
-Nom d'utilisateur : votre_utilisateur_navidrome
-Mot de passe : votre_mot_de_passe_navidrome
-```
-
-### OctoFiesta (proxy Navidrome + Deezer)
-
-[OctoFiesta](https://github.com/DoodzProg/octo-fiesta) est un reverse-proxy Navidrome qui ajoute le streaming Deezer à la demande via l'API Subsonic. La configuration est identique :
-
-```
-URL du serveur : https://votre-domaine-octofiesta.tld
-Nom d'utilisateur : votre_utilisateur_navidrome
-Mot de passe : votre_mot_de_passe_navidrome
-```
-
-Les IDs préfixés `ext-deezer:` sont gérés de façon transparente — aucune manipulation côté client.
-
----
-
-## CI/CD
-
-Musonic utilise GitHub Actions pour les builds automatisés :
-
-| Workflow | Déclencheur | Résultat |
-|----------|-------------|----------|
-| `android-release.yml` | Push tag `v*` ou manuel | APK release signé |
-| `ios-release.yml` | Push tag `v*` ou manuel | IPA non signé (sideload via AltStore/Sideloadly) |
-| `ci.yml` | PR vers `main` / push sur `develop` | Lint + vérification de types |
-
----
-
-## Build — APK Android signé
-
-```bash
-# 1. Vérifier que le keystore est configuré
-# android/keystore.properties doit référencer votre fichier keystore (ignoré par git)
-
-# 2. Construire l'APK release
-cd android
-./gradlew assembleRelease
-
-# Résultat : android/app/build/outputs/apk/release/app-release.apk
-```
-
-> Le fichier keystore (`android/app/musonic-release.keystore`) et `android/keystore.properties` sont ignorés par git. Faites-en une sauvegarde sécurisée.
-
----
-
-## Structure du projet
-
-```
-src/
-├── api/
-│   ├── client.ts          Client fetch Subsonic, helpers URL
-│   ├── types.ts           Définitions de types TypeScript
-│   ├── deezer.ts          API publique Deezer — recommandations, images artiste (sans clé)
-│   ├── apiKeys.example.ts Modèle de clés API (aucune clé requise actuellement)
-│   └── endpoints/
-│       ├── library.ts     getRecentAlbums, getStarred, star/unstar, titres similaires
-│       ├── playlists.ts   Opérations CRUD playlists
-│       └── search.ts      search() + enrichissement images Deezer asynchrone
-├── components/            UI partagée (lecteur, sheets, icônes, cartes…)
-├── hooks/                 useSetupPlayer, useImageColor
-├── i18n/                  fr.ts (source de vérité) + en.ts + hook index.ts
-├── navigation/            RootNavigator, TabNavigator, stacks, types
-├── screens/               Home, Search, Library, AlbumDetail, ArtistDetail,
-│                          PlaylistDetail, LikedSongs, Settings, ServerSetup
-├── services/              PlaybackService (headless), playerActions, connectivityService
-├── store/                 Stores Zustand : lecteur, paramètres, historique recherche,
-│                          cache playlists, téléchargements, appartenance playlist
-├── theme/                 Design tokens, objet dark theme
-└── utils/                 colorUtils (mélange hex, mapping ID → couleur)
-```
-
----
-
-## Licence
-
-Ce projet est distribué sous licence [CC BY-NC 4.0](LICENSE).  
-Libre d'utilisation et d'adaptation à des fins personnelles et non commerciales. Tout usage commercial est interdit.

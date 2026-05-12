@@ -240,7 +240,7 @@ export default function CustomDrawerContent({onClose}: Props) {
         </TouchableOpacity>
       </View>
 
-      <View style={{flex: 1}} />
+      <View style={styles.spacer} />
 
       {/* Credits */}
       <View style={styles.separator} />
@@ -401,5 +401,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#555',
     fontWeight: '500',
+  },
+  spacer: {
+    flex: 1,
   },
 });

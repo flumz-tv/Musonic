@@ -117,7 +117,6 @@ export default function LikedSongsScreen() {
         data={displayedSongs}
         keyExtractor={s => s.id}
         showsVerticalScrollIndicator={false}
-        estimatedItemSize={64}
         ListHeaderComponent={
           <View>
             <LinearGradient

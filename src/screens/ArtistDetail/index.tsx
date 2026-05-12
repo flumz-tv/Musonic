@@ -100,8 +100,8 @@ export default function ArtistDetailScreen() {
         );
         const flat = artDedupeById(rawArrays.flat());
         const enriched = await enrichTracksWithAlbumType(flat);
-        const albums = artDedupeAlbums(enriched.filter(t => !t.isSingle)).slice(0, 12);
-        setSimilarAlbums(albums);
+        const simList = artDedupeAlbums(enriched.filter(tr => !tr.isSingle)).slice(0, 12);
+        setSimilarAlbums(simList);
       } catch { /* silent */ }
     }
     loadSimilar();

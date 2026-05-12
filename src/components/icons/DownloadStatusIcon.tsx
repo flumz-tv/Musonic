@@ -8,7 +8,7 @@
  * @license CC-BY-NC-4.0
  */
 import React from 'react';
-import {ActivityIndicator, View} from 'react-native';
+import {ActivityIndicator, StyleSheet, View} from 'react-native';
 import Svg, {Circle, Path} from 'react-native-svg';
 import {useDownloadStore} from '../../store/downloadStore';
 
@@ -42,7 +42,7 @@ export default function DownloadStatusIcon({trackId, size = 22}: Props) {
 
   if (isDownloading) {
     return (
-      <View style={{width: size, height: size, alignItems: 'center', justifyContent: 'center'}}>
+      <View style={[styles.iconCenter, {width: size, height: size}]}>
         <ActivityIndicator size="small" color="#1ED760" />
       </View>
     );
@@ -62,3 +62,7 @@ export default function DownloadStatusIcon({trackId, size = 22}: Props) {
     </Svg>
   );
 }
+
+const styles = StyleSheet.create({
+  iconCenter: {alignItems: 'center', justifyContent: 'center'},
+});

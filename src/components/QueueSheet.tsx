@@ -379,7 +379,7 @@ export default function QueueSheet({visible, onClose, slideY}: Props) {
           ) : (
             <View style={styles.bottomBar}>
               <TouchableOpacity
-                style={[styles.bottomBtn, isFetchingMagic && {opacity: 0.5}]}
+                style={[styles.bottomBtn, isFetchingMagic && styles.dimmed]}
                 onPress={() => {
                   if (isOfflineMode && shuffleMode === 'on') { setShuffleMode('off'); return; }
                   toggleShuffle();
@@ -608,5 +608,8 @@ const styles = StyleSheet.create({
     width: 4,
     backgroundColor: ORANGE,
     borderRadius: 1,
+  },
+  dimmed: {
+    opacity: 0.5,
   },
 });

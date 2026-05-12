@@ -576,9 +576,9 @@ export default function LibraryScreen() {
   const fetchItems = useCallback(async () => {
     if (isOfflineMode) {
       const {cachedPlaylists, getOfflineSongs} = usePlaylistCacheStore.getState();
-      const {downloads} = useDownloadStore.getState();
+      const {downloads: dlMap} = useDownloadStore.getState();
       const cached = cachedPlaylists.filter((p: SubsonicPlaylist) =>
-        getOfflineSongs(p.id).some(s => !!downloads[String(s.id)]),
+        getOfflineSongs(p.id).some(s => !!dlMap[String(s.id)]),
       );
       const plItems: LibraryItem[] = cached.map((p: SubsonicPlaylist) => ({
         id: p.id,
@@ -791,7 +791,7 @@ export default function LibraryScreen() {
     navigation.navigate('PlaylistDetail', {playlistId: item.id, autoEdit: true});
   }, [navigation]);
 
-  const handleInfoSaved = useCallback((name: string, desc: string) => {
+  const handleInfoSaved = useCallback((name: string, _desc: string) => {
     const item = lastOptionsItem.current;
     if (item) setItems(prev => prev.map(i => i.id === item.id ? {...i, name} : i));
     showToast(getT().playlistInfo.saved);
@@ -883,7 +883,6 @@ export default function LibraryScreen() {
             keyExtractor={item => item.id}
             numColumns={viewMode === 'grid' ? 3 : 1}
             showsVerticalScrollIndicator={false}
-            estimatedItemSize={viewMode === 'list' ? 83 : 160}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}

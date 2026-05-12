@@ -7,7 +7,7 @@
  * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -101,7 +101,7 @@ function CoverDownloadIcon({trackId, size = 28}: {trackId: string; size?: number
 
   if (isDownloading) {
     return (
-      <View style={{width: size, height: size, alignItems: 'center', justifyContent: 'center'}}>
+      <View style={[styles.iconCenter, {width: size, height: size}]}>
         <ActivityIndicator size="small" color="#1ED760" />
       </View>
     );
@@ -152,7 +152,6 @@ export default function FullScreenPlayer() {
   const {state} = usePlaybackState();
   const isPlaying = state === State.Playing;
   const {position} = useProgress();
-  const isShuffled = usePlayerStore(s => s.isShuffled);
   const shuffleMode = usePlayerStore(s => s.shuffleMode);
   const repeatMode = usePlayerStore(s => s.repeatMode);
   const isFullScreenOpen = usePlayerStore(s => s.isFullScreenOpen);
@@ -168,16 +167,19 @@ export default function FullScreenPlayer() {
   const toggleLike = usePlayerStore(s => s.toggleLike);
 
   const fspTrackId = currentTrack?.id ? String(currentTrack.id) : '';
-  const currentTrackAsSong: SubsonicSong | null = currentTrack ? {
-    id: String(currentTrack.id),
-    title: currentTrack.title ?? '',
-    artist: currentTrack.artist ?? '',
-    artistId: (currentTrack as any).artistId ? String((currentTrack as any).artistId) : undefined,
-    album: currentTrack.album ?? '',
-    albumId: (currentTrack as any).albumId ? String((currentTrack as any).albumId) : undefined,
-    coverArt: currentTrack.coverArt ? String(currentTrack.coverArt) : undefined,
-    duration: currentTrack.duration ?? 0,
-  } : null;
+  const currentTrackAsSong = useMemo<SubsonicSong | null>(() => {
+    if (!currentTrack) return null;
+    return {
+      id: String(currentTrack.id),
+      title: currentTrack.title ?? '',
+      artist: currentTrack.artist ?? '',
+      artistId: (currentTrack as any).artistId ? String((currentTrack as any).artistId) : undefined,
+      album: currentTrack.album ?? '',
+      albumId: (currentTrack as any).albumId ? String((currentTrack as any).albumId) : undefined,
+      coverArt: currentTrack.coverArt ? String(currentTrack.coverArt) : undefined,
+      duration: currentTrack.duration ?? 0,
+    };
+  }, [currentTrack]);
   const isLiked = fspTrackId ? (localLikeOverrides[fspTrackId] ?? likedSongIds.has(fspTrackId)) : false;
   const useWaveformScrubber = useSettingsStore(s => s.useWaveformScrubber);
   const isOfflineMode = useSettingsStore(s => s.isOfflineMode);
@@ -531,7 +533,7 @@ export default function FullScreenPlayer() {
               }}
               hitSlop={HIT}
               disabled={isFetchingMagic}
-              style={isFetchingMagic ? {opacity: 0.5} : undefined}>
+              style={isFetchingMagic ? styles.dimmed : undefined}>
               {isFetchingMagic
                 ? <ActivityIndicator size="small" color="#fff" />
                 : <ShuffleIcon mode={shuffleMode} />}
@@ -631,6 +633,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -12,
     right: -12,
+  },
+  iconCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dimmed: {
+    opacity: 0.5,
   },
   // Header
   header: {

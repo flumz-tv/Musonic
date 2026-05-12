@@ -186,7 +186,7 @@ function SongRow({song, isActive, index, onPress, onMore, onAddToPlaylist, onDow
 // ─── List Header ──────────────────────────────────────────────────────────────
 function AlbumHeader({
   topBarH, coverArtId, albumName, artistName, artistImageUrl, year,
-  isShuffled, shuffleMode, isStarred, loadingAlbum, coverScale, coverTranslateY,
+  isShuffled: _isShuffled, shuffleMode, isStarred, loadingAlbum, coverScale, coverTranslateY,
   onPlay, onShuffle, onToggleStar, onArtistPress, onMorePress, onDownload,
 }: any) {
   const t = useT();

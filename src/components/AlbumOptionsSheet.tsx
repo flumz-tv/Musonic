@@ -101,6 +101,7 @@ export default function AlbumOptionsSheet({
       translateY.value = withTiming(SH, {duration: 250, easing: Easing.in(Easing.cubic)});
       overlayOpacity.value = withTiming(0, {duration: 180});
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   return (
