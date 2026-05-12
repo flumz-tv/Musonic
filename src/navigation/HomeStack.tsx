@@ -4,7 +4,7 @@
  *   PlaylistDetail, AlbumDetail, and ArtistDetail so detail screens are reachable
  *   from the home feed without leaving the tab.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React from 'react';

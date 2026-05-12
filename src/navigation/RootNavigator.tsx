@@ -4,7 +4,7 @@
  *   the main DrawerContainer. Also locks screen orientation based on user
  *   settings and manages the full-screen player overlay.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React, {useEffect} from 'react';

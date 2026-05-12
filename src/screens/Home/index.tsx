@@ -27,15 +27,19 @@ import {
   getRecentAlbums,
   getFrequentAlbums,
   getStarred,
-  getSimilarSongs,
   getSimilarArtists,
 } from '../../api/endpoints/library';
 import {getPlaylists} from '../../api/endpoints/playlists';
-import {getArtistImage} from '../../api/deezer';
-import {getStreamUrl, getCoverArtUrl} from '../../api/client';
-import {loadAndPlayAlbum, loadAndPlayTracks} from '../../services/playerActions';
-import { usePlayerStore, type Track } from '../../store/playerStore';
-import type {SubsonicAlbum, SubsonicSong, SubsonicSimilarArtist, SubsonicPlaylist} from '../../api/types';
+import {
+  getArtistImage,
+  getDeezerArtistId,
+  getDeezerArtistTopTracks,
+  enrichTracksWithAlbumType,
+  type DeezerTrack,
+} from '../../api/deezer';
+import {loadAndPlayAlbum} from '../../services/playerActions';
+import {usePlayerStore} from '../../store/playerStore';
+import type {SubsonicAlbum, SubsonicSimilarArtist, SubsonicPlaylist} from '../../api/types';
 import AlbumCard from '../../components/AlbumCard';
 import ArtistCard from '../../components/ArtistCard';
 import QuickAccessCard from '../../components/QuickAccessCard';
@@ -44,13 +48,29 @@ import HeartIcon from '../../components/icons/HeartIcon';
 import GlobalHeader from '../../components/GlobalHeader';
 import {useT} from '../../i18n';
 import {useNetworkStore} from '../../store/networkStore';
+import {useSettingsStore} from '../../store/settingsStore';
 
 type FilterKey = 'all' | 'recent' | 'frequent' | 'reco' | 'discover';
+
+function homeDedupeById(tracks: DeezerTrack[]): DeezerTrack[] {
+  const seen = new Set<number>();
+  return tracks.filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+}
+
+function homeDedupeAlbums(tracks: DeezerTrack[]): DeezerTrack[] {
+  const seen = new Set<number>();
+  return tracks.filter(t => {
+    if (t.isSingle) return true;
+    if (seen.has(t.album.id)) return false;
+    seen.add(t.album.id);
+    return true;
+  });
+}
 
 type HomeData = {
   recentAlbums: SubsonicAlbum[];
   frequentAlbums: SubsonicAlbum[];
-  recommendedSongs: SubsonicSong[];
+  deezerRecoAlbums: DeezerTrack[];
   discoverArtists: SubsonicSimilarArtist[];
   playlists: SubsonicPlaylist[];
   likedCount: number;
@@ -69,7 +89,7 @@ export default function HomeScreen() {
   const [data, setData] = useState<HomeData>({
     recentAlbums: [],
     frequentAlbums: [],
-    recommendedSongs: [],
+    deezerRecoAlbums: [],
     discoverArtists: [],
     playlists: [],
     likedCount: 0,
@@ -83,10 +103,12 @@ export default function HomeScreen() {
   const sectionYs = useRef<Partial<Record<FilterKey, number>>>({});
 
   const playlistVersion = usePlayerStore(s => s.playlistVersion);
+  const isOfflineMode = useSettingsStore(s => s.isOfflineMode);
 
   const navigation = useNavigation<any>();
 
   const load = useCallback(async () => {
+    if (isOfflineMode) { setLoading(false); return; }
     try {
       const [recent, frequent, starred, playlists] = await Promise.all([
         getRecentAlbums(8),
@@ -95,34 +117,18 @@ export default function HomeScreen() {
         getPlaylists().catch(() => [] as SubsonicPlaylist[]),
       ]);
 
-      const seedArtistIds = frequent
-        .slice(0, 3)
-        .map(a => a.artistId)
-        .filter(Boolean);
+      const seedArtistIds = frequent.slice(0, 3).map(a => a.artistId).filter(Boolean);
+      const recentArtistNames = [...new Set(recent.map(a => a.artist).filter(Boolean))].slice(0, 4);
 
-      const [songArrays, artistArrays] = await Promise.all([
-        Promise.all(seedArtistIds.map(id => getSimilarSongs(id, 10).catch(() => []))),
+      // Discover artists (Subsonic) + Deezer reco albums — run in parallel
+      const [artistArrays, deezerRawArrays] = await Promise.all([
         Promise.all(seedArtistIds.map(id => getSimilarArtists(id, 8).catch(() => []))),
+        Promise.all(recentArtistNames.map(async name => {
+          const id = await getDeezerArtistId(name).catch(() => null);
+          if (!id) return [] as DeezerTrack[];
+          return getDeezerArtistTopTracks(id, 8).catch(() => [] as DeezerTrack[]);
+        })),
       ]);
-
-      const allSongs = songArrays.flat();
-      for (let i = allSongs.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [allSongs[i], allSongs[j]] = [allSongs[j], allSongs[i]];
-      }
-      const seenSongs = new Set<string>();
-      const artistSongCount = new Map<string, number>();
-      const recommendedSongs = allSongs
-        .filter(s => {
-          if (seenSongs.has(s.id)) return false;
-          const key = s.artistId ?? s.artist;
-          const count = artistSongCount.get(key) ?? 0;
-          if (count >= 2) return false;
-          seenSongs.add(s.id);
-          artistSongCount.set(key, count + 1);
-          return true;
-        })
-        .slice(0, 15);
 
       const seenArtists = new Set<string>();
       const rawDiscover = artistArrays
@@ -134,17 +140,28 @@ export default function HomeScreen() {
         })
         .slice(0, 12);
 
-      const discoverArtists = await Promise.all(
-        rawDiscover.map(async a => ({
+      const deezerFlat = homeDedupeById(deezerRawArrays.flat()).slice(0, 25);
+
+      // Fetch discover images + enrich Deezer tracks — in parallel
+      const [discoverArtists, deezerEnriched] = await Promise.all([
+        Promise.all(rawDiscover.map(async a => ({
           ...a,
           artistImageUrl: (await getArtistImage(a.name)) ?? undefined,
-        })),
-      );
+        }))),
+        enrichTracksWithAlbumType(deezerFlat),
+      ]);
+
+      const deezerRecoAlbums = homeDedupeAlbums(
+        deezerEnriched.filter(t => !t.isSingle),
+      ).slice(0, 10);
+
+      const recentIdSet = new Set(recent.map(a => a.id));
+      const filteredFrequent = frequent.filter(a => !recentIdSet.has(a.id));
 
       setData({
         recentAlbums: recent,
-        frequentAlbums: frequent,
-        recommendedSongs,
+        frequentAlbums: filteredFrequent,
+        deezerRecoAlbums,
         discoverArtists,
         playlists,
         likedCount: starred.songs.length,
@@ -157,11 +174,11 @@ export default function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isOfflineMode]);
 
   useEffect(() => {
     load();
-  }, [load, playlistVersion]);
+  }, [load, playlistVersion, isOfflineMode]);
 
   // ─── Auto-recovery when connectivity is restored ──────────────────────────
   const isOffline = useNetworkStore(s => s.isOffline);
@@ -243,28 +260,6 @@ export default function HomeScreen() {
     [navigation],
   );
 
-  const handlePlayReco = useCallback(
-    (index: number) => {
-      if (data.recommendedSongs.length === 0) return;
-      const tracks: Track[] = data.recommendedSongs.map(s => {
-        const trackId = String(s.id);
-        return {
-          id: trackId,
-          title: s.title,
-          artist: s.artist,
-          album: s.album,
-          duration: s.duration,
-          coverArt: s.coverArt || trackId,
-          streamUrl: getStreamUrl(trackId),
-          url: getStreamUrl(trackId),
-          artwork: getCoverArtUrl(s.coverArt || trackId, 300),
-          artistId: s.artistId,
-        };
-      });
-      loadAndPlayTracks(tracks, index);
-    },
-    [data.recommendedSongs],
-  );
 
   const quickRows: typeof quickItems[] = [];
   for (let i = 0; i < Math.min(quickItems.length, 8); i += 2) {
@@ -295,8 +290,15 @@ export default function HomeScreen() {
           />
         }>
 
+        {/* Offline state */}
+        {isOfflineMode && (
+          <View style={styles.errorState}>
+            <Text style={styles.errorText}>{t.home.offlineEmptyState}</Text>
+          </View>
+        )}
+
         {/* Error state */}
-        {!loading && error && data.recentAlbums.length === 0 && (
+        {!loading && !isOfflineMode && error && data.recentAlbums.length === 0 && (
           <View style={styles.errorState}>
             <Text style={styles.errorText}>{t.home.loadError}</Text>
             <TouchableOpacity
@@ -395,8 +397,8 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Recommendations */}
-        {!error && data.recommendedSongs.length > 0 && (
+        {/* Recommendations — Deezer album recs based on recent listens */}
+        {!error && data.deezerRecoAlbums.length > 0 && (
           <View
             onLayout={e => {
               sectionYs.current.reco = e.nativeEvent.layout.y;
@@ -404,15 +406,18 @@ export default function HomeScreen() {
             <SectionHeader title={t.home.sections.recommendations} />
             <FlatList
               horizontal
-              data={data.recommendedSongs}
-              keyExtractor={s => s.id}
-              renderItem={({item, index}) => (
+              data={data.deezerRecoAlbums}
+              keyExtractor={item => `reco-${item.id}`}
+              renderItem={({item}) => (
                 <AlbumCard
-                  id={item.id}
-                  name={item.title}
-                  artist={item.artist}
-                  coverArt={item.coverArt}
-                  onPress={() => handlePlayReco(index)}
+                  id={String(item.id)}
+                  name={item.album.title}
+                  artist={item.artist.name}
+                  imageUrl={item.album.cover_medium}
+                  label={t.home.typeAlbum}
+                  onPress={() =>
+                    navigation.navigate('AlbumDetail', {albumId: `ext-deezer-album-${item.album.id}`})
+                  }
                 />
               )}
               contentContainerStyle={styles.hList}

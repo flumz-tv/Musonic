@@ -4,7 +4,7 @@
  *   Active line animates (scale + opacity). User can scroll freely; auto-recentering
  *   resumes only after the user stops scrolling. Opened from FullScreenPlayer.
  * @author DoodzProg
- * @version 0.9.3
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
@@ -20,11 +20,15 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Svg, {Path} from 'react-native-svg';
+import ChevronDownIcon from './icons/ChevronDownIcon';
+import PrevIcon from './icons/PrevIcon';
+import NextIcon from './icons/NextIcon';
+import RepeatIcon from './icons/RepeatIcon';
+import ShuffleIcon from './icons/ShuffleIcon';
 import {getCoverArtUrl} from '../api/client';
 import Slider from '@react-native-community/slider';
 import {useActiveTrack, usePlaybackState, useProgress, State} from 'react-native-track-player';
-import {usePlayerStore, type RepeatModeUI as RepeatMode} from '../store/playerStore';
-import {darkTheme} from '../theme';
+import {usePlayerStore} from '../store/playerStore';
 import {formatTime} from '../utils/colorUtils';
 import {seekTo, skipNext, skipPrev} from '../services/playerActions';
 import type {LyricsData, LyricLine} from '../api/endpoints/library';
@@ -35,42 +39,6 @@ const LYRICS_PAD = 230;
 const HIT = {top: 14, bottom: 14, left: 14, right: 14};
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
-
-function ChevronDownIcon() {
-  return (
-    <Svg width={28} height={28} viewBox="0 0 24 24">
-      <Path d="M6 9 L12 15 L18 9" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </Svg>
-  );
-}
-
-function ShuffleIcon({active}: {active: boolean}) {
-  const col = active ? darkTheme.accent : 'rgba(255,255,255,0.65)';
-  return (
-    <View style={styles.iconWrap}>
-      <Svg width={22} height={22} viewBox="0 0 24 24">
-        <Path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" stroke={col} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </Svg>
-      {active && <View style={styles.activeDot} />}
-    </View>
-  );
-}
-
-function PrevIcon() {
-  return (
-    <Svg width={28} height={28} viewBox="0 0 16 16" fill="#fff">
-      <Path d="M3.3 1a.7.7 0 0 1 .7.7v5.15l9.95-5.744a.7.7 0 0 1 1.05.606v12.575a.7.7 0 0 1-1.05.607L4 9.149V14.3a.7.7 0 0 1-.7.7H1.7a.7.7 0 0 1-.7-.7V1.7a.7.7 0 0 1 .7-.7h1.6z" />
-    </Svg>
-  );
-}
-
-function NextIcon() {
-  return (
-    <Svg width={28} height={28} viewBox="0 0 16 16" fill="#fff">
-      <Path d="M12.7 1a.7.7 0 0 0-.7.7v5.15L2.05 1.106A.7.7 0 0 0 1 1.712v12.575a.7.7 0 0 0 1.05.607L12 9.149V14.3a.7.7 0 0 0 .7.7h1.6a.7.7 0 0 0 .7-.7V1.7a.7.7 0 0 0-.7-.7h-1.6z" />
-    </Svg>
-  );
-}
 
 function BigPlayIcon() {
   const S = 60;
@@ -90,22 +58,6 @@ function BigPauseIcon() {
       <Svg width={S * 0.38} height={S * 0.38} viewBox="0 0 24 24" fill="#000">
         <Path d="M5.7 3a.7.7 0 0 0-.7.7v16.6a.7.7 0 0 0 .7.7h2.6a.7.7 0 0 0 .7-.7V3.7a.7.7 0 0 0-.7-.7H5.7zm10 0a.7.7 0 0 0-.7.7v16.6a.7.7 0 0 0 .7.7h2.6a.7.7 0 0 0 .7-.7V3.7a.7.7 0 0 0-.7-.7h-2.6z" />
       </Svg>
-    </View>
-  );
-}
-
-function RepeatIcon({mode}: {mode: RepeatMode}) {
-  const active = mode !== 'none';
-  const col = active ? darkTheme.accent : 'rgba(255,255,255,0.65)';
-  return (
-    <View style={styles.iconWrap}>
-      <Svg width={22} height={22} viewBox="0 0 24 24">
-        <Path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3" stroke={col} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        {mode === 'one' && (
-          <Path d="M11 10h1v4" stroke={col} strokeWidth={2} strokeLinecap="round" fill="none" />
-        )}
-      </Svg>
-      {active && <View style={styles.activeDot} />}
     </View>
   );
 }
@@ -185,6 +137,7 @@ export default function LyricsScreen({visible, onClose, lyrics, coverArtId}: Pro
   const isPlaying = state === State.Playing;
   const {position} = useProgress();
   const isShuffled = usePlayerStore(s => s.isShuffled);
+  const shuffleMode = usePlayerStore(s => s.shuffleMode);
   const repeatMode = usePlayerStore(s => s.repeatMode);
   const togglePlay = usePlayerStore(s => s.togglePlay);
   const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
@@ -291,7 +244,7 @@ export default function LyricsScreen({visible, onClose, lyrics, coverArtId}: Pro
         {/* ── Header ── */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} hitSlop={HIT} style={styles.closeBtn}>
-            <ChevronDownIcon />
+            <ChevronDownIcon size={28} />
           </TouchableOpacity>
           <View style={styles.headerText}>
             <Text style={styles.headerTitle} numberOfLines={1}>
@@ -355,16 +308,16 @@ export default function LyricsScreen({visible, onClose, lyrics, coverArtId}: Pro
           </View>
           <View style={styles.controls}>
             <TouchableOpacity onPress={toggleShuffle} hitSlop={HIT}>
-              <ShuffleIcon active={isShuffled} />
+              <ShuffleIcon mode={shuffleMode} />
             </TouchableOpacity>
             <TouchableOpacity onPress={skipPrev} hitSlop={HIT}>
-              <PrevIcon />
+              <PrevIcon size={28} />
             </TouchableOpacity>
             <TouchableOpacity onPress={togglePlay}>
               {isPlaying ? <BigPauseIcon /> : <BigPlayIcon />}
             </TouchableOpacity>
             <TouchableOpacity onPress={skipNext} hitSlop={HIT}>
-              <NextIcon />
+              <NextIcon size={28} />
             </TouchableOpacity>
             <TouchableOpacity onPress={cycleRepeat} hitSlop={HIT}>
               <RepeatIcon mode={repeatMode} />
@@ -484,15 +437,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Shuffle / Repeat active dot
-  iconWrap: {alignItems: 'center', minHeight: 28},
-  activeDot: {
-    position: 'absolute',
-    bottom: -6,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: darkTheme.accent,
-    alignSelf: 'center',
-  },
 });

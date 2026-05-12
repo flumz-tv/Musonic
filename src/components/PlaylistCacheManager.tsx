@@ -5,7 +5,7 @@
  *   playerStore and playlistCacheStore so like/playlist indicators are accurate
  *   from the first screen without per-row API calls.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import {useEffect} from 'react';

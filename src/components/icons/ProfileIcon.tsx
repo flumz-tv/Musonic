@@ -2,7 +2,7 @@
  * @file ProfileIcon.tsx
  * @description SVG profile/user icon for the drawer header.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React from 'react';

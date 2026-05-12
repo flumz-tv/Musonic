@@ -4,7 +4,7 @@
  *   RNTP playback events (track change, queue updates) into playerStore so the
  *   rest of the UI stays reactive without subscribing to RNTP directly.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import TrackPlayer, {Event, useTrackPlayerEvents} from 'react-native-track-player';
@@ -25,6 +25,8 @@ function mapToTrack(t: any): Track {
     artistId: t.artistId,
     url: String(t.url ?? ''),
     artwork: typeof t.artwork === 'string' ? t.artwork : undefined,
+    isMagic: t.isMagic ? true : undefined,
+    isAutoplay: t.isAutoplay ? true : undefined,
   };
 }
 

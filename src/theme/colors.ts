@@ -4,7 +4,7 @@
  *   The app accent colour is #FF6B35 (orange) — intentionally distinct from
  *   Spotify green.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 export const palette = {

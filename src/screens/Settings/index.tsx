@@ -3,12 +3,14 @@
  * @description Settings screen. Language picker, player style (classic / waveform),
  *   crossfade duration, mono audio toggle, and screen rotation lock.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license MIT
  */
 
 import React, {useState} from 'react';
 import {
+  Alert,
+  ActivityIndicator,
   View,
   Text,
   StyleSheet,
@@ -17,6 +19,7 @@ import {
   Switch,
   Platform,
 } from 'react-native';
+import {checkForUpdate} from '../../services/updateChecker';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import Svg, {Path, Circle, Rect} from 'react-native-svg';
@@ -66,6 +69,7 @@ function PhoneRotateIcon({locked}: {locked: boolean}) {
 
 export default function SettingsScreen() {
   const navigation = useNavigation();
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const {
     useWaveformScrubber,
     setUseWaveformScrubber,
@@ -73,12 +77,17 @@ export default function SettingsScreen() {
     setCrossfadeDuration,
     rotationLocked,
     setRotationLocked,
+    isAutoplayEnabled,
+    setIsAutoplayEnabled,
+    isAutoDownloadEnabled,
+    setIsAutoDownloadEnabled,
+    autoOnlineMode,
+    setAutoOnlineMode,
     locale,
     setLocale,
   } = useSettingsStore();
 
   const t = useT();
-  const [mono, setMono] = useState(false);
 
   const ACCENT = '#FF6B35';
 
@@ -195,12 +204,54 @@ export default function SettingsScreen() {
 
         <View style={styles.settingRow}>
           <View style={styles.textBlock}>
-            <Text style={styles.settingLabel}>{t.settings.playback.monoLabel}</Text>
-            <Text style={styles.settingDesc}>{t.settings.playback.monoDesc}</Text>
+            <Text style={styles.settingLabel}>{t.settings.playback.autoplayLabel}</Text>
+            <Text style={styles.settingDesc}>{t.settings.playback.autoplayDesc}</Text>
           </View>
           <Switch
-            value={mono}
-            onValueChange={setMono}
+            value={isAutoplayEnabled}
+            onValueChange={setIsAutoplayEnabled}
+            trackColor={{false: '#535353', true: ACCENT}}
+            thumbColor={Platform.OS === 'android' ? '#fff' : undefined}
+          />
+        </View>
+
+        <View style={styles.settingRow}>
+          <View style={styles.textBlock}>
+            <Text style={styles.settingLabel}>{t.settings.playback.autoDownloadLabel}</Text>
+            <Text style={styles.settingDesc}>{t.settings.playback.autoDownloadDesc}</Text>
+          </View>
+          <Switch
+            value={isAutoDownloadEnabled}
+            onValueChange={val => {
+              if (val) {
+                Alert.alert(
+                  t.settings.playback.autoDownloadAlertTitle,
+                  t.settings.playback.autoDownloadAlertMessage,
+                  [
+                    {text: t.settings.playback.autoDownloadAlertCancel, style: 'cancel'},
+                    {text: t.settings.playback.autoDownloadAlertConfirm, onPress: () => setIsAutoDownloadEnabled(true)},
+                  ],
+                );
+              } else {
+                setIsAutoDownloadEnabled(false);
+              }
+            }}
+            trackColor={{false: '#535353', true: ACCENT}}
+            thumbColor={Platform.OS === 'android' ? '#fff' : undefined}
+          />
+        </View>
+
+        {/* Offline mode section */}
+        <Text style={styles.sectionTitle}>{t.settings.sections.offline}</Text>
+
+        <View style={styles.settingRow}>
+          <View style={styles.textBlock}>
+            <Text style={styles.settingLabel}>{t.settings.offline.autoOnlineLabel}</Text>
+            <Text style={styles.settingDesc}>{t.settings.offline.autoOnlineDesc}</Text>
+          </View>
+          <Switch
+            value={autoOnlineMode}
+            onValueChange={setAutoOnlineMode}
             trackColor={{false: '#535353', true: ACCENT}}
             thumbColor={Platform.OS === 'android' ? '#fff' : undefined}
           />
@@ -223,6 +274,27 @@ export default function SettingsScreen() {
           />
         </View>
 
+        {/* About / Updates section */}
+        <Text style={styles.sectionTitle}>{t.settings.updates.sectionTitle}</Text>
+
+        <TouchableOpacity
+          style={styles.settingRow}
+          activeOpacity={0.7}
+          disabled={checkingUpdate}
+          onPress={async () => {
+            setCheckingUpdate(true);
+            try { await checkForUpdate(); } finally { setCheckingUpdate(false); }
+          }}>
+          <View style={styles.textBlock}>
+            <Text style={styles.settingLabel}>{t.settings.updates.checkButton}</Text>
+          </View>
+          {checkingUpdate ? (
+            <ActivityIndicator size="small" color={ACCENT} />
+          ) : (
+            <Text style={styles.versionText}>v1.0.0</Text>
+          )}
+        </TouchableOpacity>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -232,6 +304,7 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   slider: {width: '100%', height: 40},
+  versionText: {fontSize: 13, color: '#888', fontWeight: '500'},
   textBlockIndent: {marginLeft: 12},
   container: {
     flex: 1,

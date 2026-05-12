@@ -4,7 +4,7 @@
  *   Add keys here first, then mirror them in en.ts. The i18n/index.ts hook
  *   selects the active locale based on settingsStore.language.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 // French UI strings — single source of truth for all user-visible text.
@@ -57,6 +57,12 @@ export const t = {
       `Voulez-vous vous déconnecter de :\n\n${name}\n${url}`,
     logoutConfirm: 'Déconnecter',
     cancelButton: 'Annuler',
+    goOffline: 'Passer hors-ligne (Bêta)',
+    goOnline: 'Repasser en ligne',
+    offlineActive: 'Actif',
+    pingFailed: 'Connexion impossible',
+    pingFailedMessage: "Nous n'arrivons pas à joindre le serveur. Vérifiez vos paramètres réseau ou l'état de votre connexion. Ou tentez de fermer et relancer l'application.",
+    storageLabel: 'Espace musiques téléchargées',
   },
 
   // ─── Home ──────────────────────────────────────────────────────────────────
@@ -65,6 +71,7 @@ export const t = {
     unknownTitle: 'Titre inconnu',
     unknownArtist: 'Artiste inconnu',
     loadError: 'Impossible de charger la page d\'accueil',
+    offlineEmptyState: 'Contenu non disponible hors-ligne',
     typeSingle: 'Titre',
     typeAlbum: 'Album',
     filters: {
@@ -100,6 +107,18 @@ export const t = {
       title: 'Recherches récentes',
       clear: 'Effacer',
     },
+    offlineEmptyState: 'Recherche non disponible hors-ligne',
+    discover: {
+      sectionTitle: 'Découvrir',
+      loading: 'Chargement des recommandations...',
+      empty: 'Likez des titres pour obtenir des recommandations',
+      basedOnLikes: 'Selon vos titres likés',
+      albumsBasedOnLikes: 'Albums basés sur vos titres likés',
+      tracksBasedOnLikes: 'Titres basés sur vos titres likés',
+      basedOnRecent: 'Selon vos dernières écoutes',
+      sameStyle: (artist: string) => `Dans le même style que ${artist}`,
+      sameStyleTitle: 'Dans le même style que…',
+    },
   },
 
   // ─── Library ───────────────────────────────────────────────────────────────
@@ -108,6 +127,11 @@ export const t = {
     sortTitle: 'Trier par',
     emptyState: 'Aucun élément',
     loadError: 'Impossible de charger la bibliothèque',
+    offlineEmptyState: 'Aucun contenu téléchargé',
+    offlineDownloadTitle: 'Télécharger la playlist ?',
+    offlineDownloadMessage: (name: string, n: number) =>
+      `Télécharger "${name}" pour une écoute hors-ligne ? (${n} titre${n !== 1 ? 's' : ''})`,
+    offlineDownloadComplete: (name: string) => `"${name}" disponible hors-ligne`,
     likedTrackCount: (n: number) =>
       `${n} titre${n !== 1 ? 's' : ''} aimé${n !== 1 ? 's' : ''}`,
     sort: {
@@ -137,6 +161,8 @@ export const t = {
       info: 'Nom et informations',
     },
     comingSoon: 'Bientôt disponible',
+    noDownloadedSongs: 'Aucun titre téléchargé dans cette playlist',
+    offlineRecoLabel: 'Suggestions basées sur vos téléchargements',
     editHeader: 'Modifier la playlist',
     saveButton: 'Sauvegarder',
     savedToast: 'Playlist mise à jour',
@@ -144,11 +170,16 @@ export const t = {
     recommendations: {
       title: 'Titres recommandés',
       subtitle: 'Basée sur les titres de cette playlist',
+      loading: 'Chargement des recommandations...',
+      added: 'Ajouté à la playlist',
+      notOnServer: 'Titre pas encore sur ton serveur',
     },
   },
 
   // ─── Song Options Sheet ────────────────────────────────────────────────────
   songOptions: {
+    download: 'Télécharger',
+    downloadQueued: 'Téléchargement ajouté',
     addToPlaylist: 'Ajouter à la playlist',
     removeFromPlaylist: 'Supprimer de cette playlist',
     addToQueue: "Ajouter à la file d'attente",
@@ -272,6 +303,8 @@ export const t = {
   offline: {
     noInternet: 'Pas de connexion internet',
     serverUnreachable: 'Serveur injoignable',
+    offlineModeActive: 'Mode hors-ligne (Bêta)',
+    goOffline: 'Mode hors-ligne (Bêta)',
   },
 
   // ─── Settings ──────────────────────────────────────────────────────────────
@@ -285,6 +318,7 @@ export const t = {
       transitions: 'Transitions entre les titres',
       playback: "Contrôles d'écoute",
       display: 'Affichage',
+      offline: 'Mode hors-ligne (Bêta)',
     },
     player: {
       progressLabel: 'Style de la barre de progression',
@@ -300,12 +334,46 @@ export const t = {
     playback: {
       monoLabel: 'Contenu audio mono',
       monoDesc: 'Les enceintes gauche et droite diffusent le même contenu audio.',
+      autoplayLabel: 'Lecture automatique',
+      autoplayDesc: "Lance automatiquement des titres similaires à la fin de la file d'attente.",
+      autoDownloadLabel: 'Téléchargement auto.',
+      autoDownloadDesc: "Télécharge les titres sur l'appareil pour une écoute hors-ligne.",
+      autoDownloadAlertTitle: 'Téléchargement automatique',
+      autoDownloadAlertMessage: "Attention : L'auto-téléchargement consomme de l'espace de stockage sur votre téléphone ET de la bande passante sur votre serveur (Navidrome). Voulez-vous vraiment l'activer ?",
+      autoDownloadAlertConfirm: 'Activer',
+      autoDownloadAlertCancel: 'Annuler',
     },
     display: {
       lockRotationLabel: "Verrouiller la rotation de l'écran",
       lockRotationDesc:
         "Force l'affichage en portrait, même si le téléphone est penché.",
     },
+    offline: {
+      autoOnlineLabel: 'Reconnexion automatique',
+      autoOnlineDesc: "Repasse en ligne automatiquement quand le serveur est de nouveau accessible.",
+    },
+    updates: {
+      sectionTitle: 'Informations',
+      checkButton: 'Vérifier les mises à jour',
+      upToDateTitle: 'Vous êtes à jour',
+      upToDateMessage: (local: string, remote: string) =>
+        `Vous êtes actuellement sur la dernière version disponible.\nVotre version : v${local}\nDernière version en ligne : v${remote}`,
+      newVersionTitle: 'Mise à jour disponible',
+      newVersionMessage: (v: string) => `La version ${v} est disponible sur GitHub.`,
+      viewRelease: 'Voir la release',
+      error: 'Vérification impossible. Vérifiez votre connexion.',
+    },
+  },
+
+  // ─── Downloads ────────────────────────────────────────────────────────────────
+  downloads: {
+    deleteSongTitle: 'Supprimer ce téléchargement',
+    deleteSongMessage: (title: string) => `Supprimer « ${title} » de vos téléchargements ?`,
+    deletePlaylistTitle: 'Supprimer les téléchargements',
+    deletePlaylistMessage: (name: string, n: number) =>
+      `Supprimer la playlist « ${name} » (${n} musique${n !== 1 ? 's' : ''}) de vos téléchargements ?`,
+    deleteConfirm: 'Supprimer',
+    cancelButton: 'Annuler',
   },
 
   // ─── Full Screen Player ────────────────────────────────────────────────────
@@ -324,6 +392,7 @@ export const t = {
     loading: 'Chargement...',
     popularSongs: 'Populaires',
     popularReleases: 'Sorties populaires',
+    similarRecommendations: 'Dans le même style',
   },
 
   // ─── Album Detail ──────────────────────────────────────────────────────────

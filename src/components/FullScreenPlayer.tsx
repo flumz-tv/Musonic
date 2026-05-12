@@ -1,21 +1,21 @@
 /**
  * @file FullScreenPlayer.tsx
  * @description Full-screen music player. Ambient halo background (blurred cover),
- *   3-slot cover carousel with swipe gesture, waveform scrubber, playback
- *   controls, lyrics preview, and queue access.
+ *   animated cover art, waveform scrubber, playback controls, lyrics preview,
+ *   and queue access.
  * @author DoodzProg
- * @version 0.9.2
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Easing,
   Image,
   Modal,
-  PanResponder,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -25,14 +25,22 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import Svg, {Circle, Path, Rect} from 'react-native-svg';
 import Slider from '@react-native-community/slider';
 import CoverArt from './CoverArt';
+import DotsHorizontalIcon from './icons/DotsHorizontalIcon';
+import ChevronDownIcon from './icons/ChevronDownIcon';
+import PrevIcon from './icons/PrevIcon';
+import NextIcon from './icons/NextIcon';
+import RepeatIcon from './icons/RepeatIcon';
+import ShuffleIcon from './icons/ShuffleIcon';
 import {getCoverArtUrl} from '../api/client';
 import HeartIcon from './icons/HeartIcon';
+import TrackMagicIcon from './icons/TrackMagicIcon';
 import TrackPlayer, {useActiveTrack, usePlaybackState, useProgress, State} from 'react-native-track-player';
 import FastImage from '@d11/react-native-fast-image';
-import {usePlayerStore, type RepeatModeUI as RepeatMode} from '../store/playerStore';
-import {darkTheme} from '../theme';
+import {usePlayerStore} from '../store/playerStore';
+import {usePlaylistCacheStore} from '../store/playlistCacheStore';
 import {formatTime} from '../utils/colorUtils';
-import {seekTo, skipNext, skipPrev, skipPrevForce} from '../services/playerActions';
+import {seekTo, skipNext, skipPrev} from '../services/playerActions';
+import {useDownloadStore} from '../store/downloadStore';
 import {useNavigation} from '@react-navigation/native';
 import TextTicker from 'react-native-text-ticker';
 import {useSettingsStore} from '../store/settingsStore';
@@ -48,70 +56,9 @@ import {getLyricsBySongId, type LyricsData} from '../api/endpoints/library';
 
 const {width: SW, height: SH} = Dimensions.get('window');
 const COVER_SIZE = Math.min(SW - 64, SH * 0.36);
-const SLOT_W = SW - 48;
 const HIT = {top: 12, bottom: 12, left: 12, right: 12};
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
-
-function ChevronDownIcon() {
-  return (
-    <Svg width={24} height={24} viewBox="0 0 24 24">
-      <Path
-        d="M6 9 L12 15 L18 9"
-        stroke="#fff"
-        strokeWidth={2.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </Svg>
-  );
-}
-
-function DotsMenuIcon() {
-  return (
-    <Svg width={24} height={24} viewBox="0 0 24 24">
-      <Circle cx={5} cy={12} r={1.5} fill="#fff" />
-      <Circle cx={12} cy={12} r={1.5} fill="#fff" />
-      <Circle cx={19} cy={12} r={1.5} fill="#fff" />
-    </Svg>
-  );
-}
-
-function ShuffleIcon({active}: {active: boolean}) {
-  const col = active ? darkTheme.accent : 'rgba(255,255,255,0.7)';
-  return (
-    <View style={styles.iconWrap}>
-      <Svg width={22} height={22} viewBox="0 0 24 24">
-        <Path 
-          d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" 
-          stroke={col} 
-          strokeWidth={2} 
-          strokeLinecap="round" 
-          strokeLinejoin="round" 
-          fill="none" 
-        />
-      </Svg>
-      {active && <View style={styles.activeDot} />}
-    </View>
-  );
-}
-
-function PrevIcon({size = 32}: {size?: number}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 16 16" fill="#fff">
-      <Path d="M3.3 1a.7.7 0 0 1 .7.7v5.15l9.95-5.744a.7.7 0 0 1 1.05.606v12.575a.7.7 0 0 1-1.05.607L4 9.149V14.3a.7.7 0 0 1-.7.7H1.7a.7.7 0 0 1-.7-.7V1.7a.7.7 0 0 1 .7-.7h1.6z" />
-    </Svg>
-  );
-}
-
-function NextIcon({size = 32}: {size?: number}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 16 16" fill="#fff">
-      <Path d="M12.7 1a.7.7 0 0 0-.7.7v5.15L2.05 1.106A.7.7 0 0 0 1 1.712v12.575a.7.7 0 0 0 1.05.607L12 9.149V14.3a.7.7 0 0 0 .7.7h1.6a.7.7 0 0 0 .7-.7V1.7a.7.7 0 0 0-.7-.7h-1.6z" />
-    </Svg>
-  );
-}
 
 function BigPlayIcon({size = 64}: {size?: number}) {
   const circleStyle = {width: size, height: size, borderRadius: size / 2, backgroundColor: '#fff' as const, alignItems: 'center' as const, justifyContent: 'center' as const};
@@ -135,41 +82,42 @@ function BigPauseIcon({size = 64}: {size?: number}) {
   );
 }
 
-function RepeatIcon({mode}: {mode: RepeatMode}) {
-  const active = mode !== 'none';
-  const col = active ? darkTheme.accent : 'rgba(255,255,255,0.7)';
-  return (
-    <View style={styles.iconWrap}>
-      <Svg width={22} height={22} viewBox="0 0 24 24">
-        <Path
-          d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"
-          stroke={col}
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-        {mode === 'one' && (
-          <Path 
-            d="M11 10h1v4" 
-            stroke={col} 
-            strokeWidth={2} 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            fill="none" 
-          />
-        )}
-      </Svg>
-      {active && <View style={styles.activeDot} />}
-    </View>
-  );
-}
-
 function QueueIcon({color = '#fff', size = 24}: {color?: string; size?: number}) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Rect x="4" y="5" width="16" height="5" rx="2.5" stroke={color} strokeWidth={1.8} />
       <Path d="M4 14.5 H20 M4 19.5 H20" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function CoverDownloadIcon({trackId, size = 28}: {trackId: string; size?: number}) {
+  const isDownloaded = useDownloadStore(s => trackId in s.downloads);
+  const isDownloading = useDownloadStore(s => {
+    const a = s.activeDownloads[trackId];
+    return a != null && (a.status === 'queued' || a.status === 'downloading');
+  });
+  const color = isDownloaded ? '#1ED760' : '#B3B3B3';
+
+  if (isDownloading) {
+    return (
+      <View style={{width: size, height: size, alignItems: 'center', justifyContent: 'center'}}>
+        <ActivityIndicator size="small" color="#1ED760" />
+      </View>
+    );
+  }
+
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Circle cx={12} cy={12} r={9} stroke={color} strokeWidth={1.8} fill="none" />
+      <Path
+        d="M12 7 V14 M9 12 L12 15 L15 12"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
     </Svg>
   );
 }
@@ -205,14 +153,16 @@ export default function FullScreenPlayer() {
   const isPlaying = state === State.Playing;
   const {position} = useProgress();
   const isShuffled = usePlayerStore(s => s.isShuffled);
+  const shuffleMode = usePlayerStore(s => s.shuffleMode);
   const repeatMode = usePlayerStore(s => s.repeatMode);
   const isFullScreenOpen = usePlayerStore(s => s.isFullScreenOpen);
   const likedSongIds = usePlayerStore(s => s.likedSongIds);
   const localLikeOverrides = usePlayerStore(s => s.localLikeOverrides);
-  const playlistSongIds = usePlayerStore(s => s.playlistSongIds);
+  const savedSet = usePlaylistCacheStore(s => s.savedSet);
   const currentPlaylistName = usePlayerStore(s => s.currentPlaylistName);
   const togglePlay = usePlayerStore(s => s.togglePlay);
   const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
+  const isFetchingMagic = usePlayerStore(s => s.isFetchingMagic);
   const cycleRepeat = usePlayerStore(s => s.cycleRepeat);
   const closeFullScreen = usePlayerStore(s => s.closeFullScreen);
   const toggleLike = usePlayerStore(s => s.toggleLike);
@@ -230,21 +180,9 @@ export default function FullScreenPlayer() {
   } : null;
   const isLiked = fspTrackId ? (localLikeOverrides[fspTrackId] ?? likedSongIds.has(fspTrackId)) : false;
   const useWaveformScrubber = useSettingsStore(s => s.useWaveformScrubber);
+  const isOfflineMode = useSettingsStore(s => s.isOfflineMode);
+  const setShuffleMode = usePlayerStore(s => s.setShuffleMode);
 
-  const activeIndexRef = useRef<number | undefined>(undefined);
-  const queueLengthRef = useRef<number>(0);
-  const repeatModeRef = useRef(repeatMode);
-  const isSwipingRef = useRef(false);
-  useEffect(() => {
-    Promise.all([
-      TrackPlayer.getActiveTrackIndex(),
-      TrackPlayer.getQueue(),
-    ]).then(([idx, queue]) => {
-      activeIndexRef.current = idx;
-      queueLengthRef.current = queue.length;
-    }).catch(() => {});
-  }, [currentTrack?.id]);
-  useEffect(() => { repeatModeRef.current = repeatMode; }, [repeatMode]);
 
   // Background lyrics pre-fetch — undefined=loading (hides card), null=no lyrics, data=ready.
   useEffect(() => {
@@ -264,15 +202,13 @@ export default function FullScreenPlayer() {
   const translateY = useRef(new Animated.Value(SH)).current;
   const [visible, setVisible] = useState(false);
   const coverScale = useRef(new Animated.Value(0.88)).current;
-  const carouselX = useRef(new Animated.Value(-SLOT_W)).current;
-  const [carouselCovers, setCarouselCovers] = useState<{prevId?: string; currId?: string; nextId?: string}>({currId: currentTrack?.coverArt ?? undefined});
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekValue, setSeekValue] = useState(0);
   const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
   const [songOptionsVisible, setSongOptionsVisible] = useState(false);
   const [lyricsData, setLyricsData] = useState<LyricsData | undefined>(undefined);
   const [lyricsVisible, setLyricsVisible] = useState(false);
-  const inPlaylist = fspTrackId ? playlistSongIds.has(fspTrackId) : false;
+  const inPlaylist = fspTrackId ? savedSet.has(fspTrackId) : false;
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -295,7 +231,28 @@ export default function FullScreenPlayer() {
     });
   }, [fspTrackId, localLikeOverrides, likedSongIds, toggleLike, showToast]);
 
-  // Load carousel covers + prefetch adjacent tracks
+  const handleDownloadPress = useCallback(() => {
+    if (!fspTrackId || !currentTrackAsSong) return;
+    if (useDownloadStore.getState().isDownloaded(fspTrackId)) {
+      const d = getT();
+      Alert.alert(
+        d.downloads.deleteSongTitle,
+        d.downloads.deleteSongMessage(currentTrackAsSong.title),
+        [
+          {text: d.downloads.cancelButton, style: 'cancel'},
+          {
+            text: d.downloads.deleteConfirm,
+            style: 'destructive',
+            onPress: () => useDownloadStore.getState().deleteDownload(fspTrackId),
+          },
+        ],
+      );
+      return;
+    }
+    useDownloadStore.getState().enqueueTrack(currentTrackAsSong);
+  }, [fspTrackId, currentTrackAsSong]);
+
+  // Prefetch adjacent cover art and audio chunk for seamless transitions
   useEffect(() => {
     if (!currentTrack?.id) return;
     TrackPlayer.getQueue().then(queue => {
@@ -303,11 +260,6 @@ export default function FullScreenPlayer() {
       if (idx === -1) return;
       const prevT = idx > 0 ? queue[idx - 1] : undefined;
       const nextT = idx < queue.length - 1 ? queue[idx + 1] : undefined;
-      setCarouselCovers({
-        prevId: prevT?.coverArt ? String(prevT.coverArt) : undefined,
-        currId: currentTrack.coverArt ? String(currentTrack.coverArt) : undefined,
-        nextId: nextT?.coverArt ? String(nextT.coverArt) : undefined,
-      });
       const coverUris: Array<{uri: string; priority: 'low' | 'normal' | 'high'}> = [];
       for (const adj of [prevT, nextT]) {
         if (!adj) continue;
@@ -323,49 +275,6 @@ export default function FullScreenPlayer() {
   const [queueVisible, setQueueVisible] = useState(false);
   const queueSlideY = useRef(new Animated.Value(SH)).current;
 
-  const coverPan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, gs) => {
-        if (Math.abs(gs.dx) > Math.abs(gs.dy)) {
-          carouselX.setValue(-SLOT_W + gs.dx);
-        } else if (gs.dy > 0) {
-          translateY.setValue(gs.dy);
-        }
-      },
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dy > 100 || (gs.vy > 0.8 && Math.abs(gs.dy) > Math.abs(gs.dx))) {
-          handleClose();
-        } else if (gs.dx < -40 || (gs.vx < -0.5 && Math.abs(gs.dx) > Math.abs(gs.dy))) {
-          const atEnd = activeIndexRef.current !== undefined &&
-            queueLengthRef.current > 0 &&
-            activeIndexRef.current === queueLengthRef.current - 1;
-          const noRepeat = repeatModeRef.current === 'none';
-          if (isSwipingRef.current || (atEnd && noRepeat)) {
-            Animated.spring(carouselX, {toValue: -SLOT_W, friction: 7, tension: 80, useNativeDriver: true}).start();
-            Animated.spring(translateY, {toValue: 0, useNativeDriver: true}).start();
-            return;
-          }
-          Animated.spring(translateY, {toValue: 0, useNativeDriver: true}).start();
-          handleSwipeTo('next');
-        } else if (gs.dx > 40 || (gs.vx > 0.5 && Math.abs(gs.dx) > Math.abs(gs.dy))) {
-          const atStart = activeIndexRef.current === 0;
-          const noRepeat = repeatModeRef.current === 'none';
-          if (isSwipingRef.current || (atStart && noRepeat)) {
-            Animated.spring(carouselX, {toValue: -SLOT_W, friction: 7, tension: 80, useNativeDriver: true}).start();
-            Animated.spring(translateY, {toValue: 0, useNativeDriver: true}).start();
-            return;
-          }
-          Animated.spring(translateY, {toValue: 0, useNativeDriver: true}).start();
-          handleSwipeTo('prev');
-        } else {
-          Animated.spring(carouselX, {toValue: -SLOT_W, friction: 7, tension: 80, useNativeDriver: true}).start();
-          Animated.spring(translateY, {toValue: 0, useNativeDriver: true}).start();
-        }
-      },
-    })
-  ).current;
 
   useEffect(() => {
     if (isFullScreenOpen) {
@@ -403,22 +312,6 @@ export default function FullScreenPlayer() {
     });
   }, [translateY, queueSlideY, closeFullScreen]);
 
-  const handleSwipeTo = useCallback((direction: 'next' | 'prev') => {
-    if (isSwipingRef.current) return;
-    isSwipingRef.current = true;
-    const targetX = direction === 'next' ? -2 * SLOT_W : 0;
-    Animated.timing(carouselX, {
-      toValue: targetX,
-      duration: 280,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
-      carouselX.setValue(-SLOT_W);
-      if (direction === 'next') skipNext();
-      else skipPrevForce();
-      isSwipingRef.current = false;
-    });
-  }, [carouselX]);
 
   const onArtistPress = useCallback((name: string, id?: string) => {
     handleClose();
@@ -510,40 +403,36 @@ export default function FullScreenPlayer() {
               </Text>
             </View>
             <TouchableOpacity hitSlop={HIT} onPress={() => setSongOptionsVisible(true)}>
-              <DotsMenuIcon />
+              <DotsHorizontalIcon size={24} />
             </TouchableOpacity>
           </View>
 
-          {/* ── Cover Art Carousel ── */}
+          {/* ── Cover Art ── */}
           <View style={styles.coverSection}>
-            <Animated.View style={[styles.carouselTrack, {transform: [{translateX: carouselX}]}]}>
-              <View style={styles.coverSlot}>
-                <View style={styles.coverWrapper}>
-                  <CoverArt id={carouselCovers.prevId} size={COVER_SIZE} borderRadius={8} />
-                </View>
-              </View>
-              <View style={styles.coverSlot}>
-                <Animated.View style={[styles.coverWrapper, {transform: [{scale: coverScale}]}]}>
-                  <CoverArt id={carouselCovers.currId} size={COVER_SIZE} borderRadius={8} />
-                </Animated.View>
-              </View>
-              <View style={styles.coverSlot}>
-                <View style={styles.coverWrapper}>
-                  <CoverArt id={carouselCovers.nextId} size={COVER_SIZE} borderRadius={8} />
-                </View>
-              </View>
-            </Animated.View>
+            <View style={styles.coverCenter}>
+              <Animated.View style={[styles.coverWrapper, {transform: [{scale: coverScale}]}]}>
+                <CoverArt id={currentTrack.coverArt} size={COVER_SIZE} borderRadius={8} />
+              </Animated.View>
+              {!fspTrackId.startsWith('ext-') && currentTrackAsSong && (
+                <TouchableOpacity
+                  style={styles.coverDownloadBtn}
+                  hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}
+                  activeOpacity={0.7}
+                  onPress={handleDownloadPress}>
+                  <CoverDownloadIcon trackId={fspTrackId} size={28} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
-
-          {/* Invisible full-width overlay to capture swipe gestures on cover area */}
-          <View
-            {...coverPan.panHandlers}
-            style={styles.swipeOverlay}
-          />
 
           {/* ── Track Info + Like ── */}
           <View style={styles.infoRow}>
             <View style={styles.infoText}>
+              {(currentTrack as any).isMagic && (
+                <View style={styles.magicBadge}>
+                  <TrackMagicIcon size={22} />
+                </View>
+              )}
               <TextTicker
                 style={styles.trackTitle}
                 duration={8000}
@@ -635,8 +524,17 @@ export default function FullScreenPlayer() {
 
           {/* ── Main Controls ── */}
           <View style={styles.controls}>
-            <TouchableOpacity onPress={toggleShuffle} hitSlop={HIT}>
-              <ShuffleIcon active={isShuffled} />
+            <TouchableOpacity
+              onPress={() => {
+                if (isOfflineMode && shuffleMode === 'on') { setShuffleMode('off'); return; }
+                toggleShuffle();
+              }}
+              hitSlop={HIT}
+              disabled={isFetchingMagic}
+              style={isFetchingMagic ? {opacity: 0.5} : undefined}>
+              {isFetchingMagic
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <ShuffleIcon mode={shuffleMode} />}
             </TouchableOpacity>
 
             <TouchableOpacity onPress={skipPrev} hitSlop={HIT}>
@@ -719,20 +617,20 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
   },
-  iconWrap: {alignItems: 'center', minHeight: 28},
   ambientBg: {backgroundColor: '#121212'},
   ambientBgClip: {backgroundColor: '#121212', overflow: 'hidden'},
   ambientImg: {transform: [{scale: 1.5}]},
   ambientOverlay1: {backgroundColor: 'rgba(0,0,0,0.55)'},
   ambientOverlay2: {backgroundColor: 'rgba(18,18,18,0.3)'},
-  swipeOverlay: {
+  coverCenter: {
+    position: 'relative',
+    width: COVER_SIZE,
+    height: COVER_SIZE,
+  },
+  coverDownloadBtn: {
     position: 'absolute',
-    top: 70,
-    left: 0,
-    right: 0,
-    height: COVER_SIZE + 60,
-    zIndex: 9999,
-    backgroundColor: 'rgba(0,0,0,0.01)',
+    bottom: -12,
+    right: -12,
   },
   // Header
   header: {
@@ -760,21 +658,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Cover — fixed height so the controls below stay at a predictable position
+  // Cover
   coverSection: {
     height: COVER_SIZE + 24,
     width: '100%',
-    overflow: 'hidden',
     paddingTop: 10,
     paddingBottom: 6,
-    justifyContent: 'center',
-  },
-  carouselTrack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  coverSlot: {
-    width: SLOT_W,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -803,6 +692,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexShrink: 0,
     gap: 16,
+  },
+  magicBadge: {
+    position: 'absolute',
+    top: -8,
+    left: 0,
   },
   trackTitle: {
     fontSize: 22,
@@ -855,24 +749,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 8,
-  },
-
-  // Repeat / Shuffle dots
-  activeDot: {
-    position: 'absolute',
-    bottom: -6,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: darkTheme.accent,
-    alignSelf: 'center',
-  },
-  repeatOneLabel: {
-    position: 'absolute',
-    fontSize: 8,
-    fontWeight: '900',
-    top: 7,
-    left: 7,
   },
 
   // Lyrics

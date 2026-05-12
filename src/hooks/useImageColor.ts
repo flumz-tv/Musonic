@@ -3,7 +3,7 @@
  * @description Hook that extracts the dominant color from the active track's
  *   artwork and updates playerStore.dominantColor for ambient player backgrounds.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import {useEffect} from 'react';

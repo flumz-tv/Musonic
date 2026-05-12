@@ -3,7 +3,7 @@
  * @description Compact card used in the Home screen quick-access grid. Renders
  *   a playlist, album, or Liked Songs shortcut with cover art or icon fallback.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React from 'react';

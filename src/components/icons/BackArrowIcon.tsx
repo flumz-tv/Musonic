@@ -2,7 +2,7 @@
  * @file BackArrowIcon.tsx
  * @description Reusable SVG back-arrow icon used across detail screens.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React from 'react';
@@ -14,9 +14,17 @@ export default function BackArrowIcon({size = 24, color = '#fff'}: Props) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path
-        d="M20 12 H4 M10 18 L4 12 L10 6"
+        d="m12 19-7-7 7-7"
         stroke={color}
-        strokeWidth={2.5}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <Path
+        d="M19 12H5"
+        stroke={color}
+        strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"

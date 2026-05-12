@@ -3,7 +3,7 @@
  * @description FastImage wrapper for Subsonic cover art. Resolves the cover URL
  *   from a track/album ID and shows a dark placeholder while loading.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React from 'react';
@@ -25,7 +25,7 @@ function getLocalPlaylistCover(playlistId: string): string | null {
   return storage.getString(`coverart_pl_${playlistId}`) ?? null;
 }
 
-export default function CoverArt({id, size, borderRadius = 4, imageUrl, playlistId}: Props) {
+function CoverArt({id, size, borderRadius = 4, imageUrl, playlistId}: Props) {
   const localUri = playlistId ? getLocalPlaylistCover(playlistId) : null;
   const uri = localUri ?? imageUrl ?? (id ? getCoverArtUrl(id, size * 2) : null);
 
@@ -46,6 +46,8 @@ export default function CoverArt({id, size, borderRadius = 4, imageUrl, playlist
     </View>
   );
 }
+
+export default React.memo(CoverArt);
 
 const styles = StyleSheet.create({
   placeholder: {

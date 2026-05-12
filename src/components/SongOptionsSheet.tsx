@@ -4,29 +4,35 @@
  *   membership, remove from current playlist, add to queue, go to album, go to
  *   artist. Preserves last non-null track during the close animation.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
-  Animated,
   Dimensions,
-  Easing,
   Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, {useSharedValue, useAnimatedStyle, withTiming, withSpring, Easing, runOnJS} from 'react-native-reanimated';
+import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import Svg, {Circle, Path} from 'react-native-svg';
+import CheckCircleGreenIcon from './icons/CheckCircleGreenIcon';
+import PlusCircleIcon from './icons/PlusCircleIcon';
+import PersonIcon from './icons/PersonIcon';
+import QueueAddIcon from './icons/QueueAddIcon';
 import TrackPlayer from 'react-native-track-player';
 import CoverArt from './CoverArt';
 import HeartIcon from './icons/HeartIcon';
+import DownloadIcon from './icons/DownloadIcon';
 import AddToPlaylistSheet from './AddToPlaylistSheet';
 import {darkTheme} from '../theme';
 import {updatePlaylist} from '../api/endpoints/playlists';
 import {getStreamUrl, getCoverArtUrl} from '../api/client';
 import {syncUpcomingFromRNTP} from '../services/playerActions';
+import {useDownloadStore} from '../store/downloadStore';
 import {usePlayerStore} from '../store/playerStore';
 import {usePlaylistCacheStore, fetchAndCachePlaylistSongs} from '../store/playlistCacheStore';
 import {useT, getT} from '../i18n';
@@ -37,31 +43,11 @@ const ICON_COLOR = '#B3B3B3';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
-function PlusCircleIcon() {
-  return (
-    <Svg width={24} height={24} viewBox="0 0 24 24">
-      <Circle cx={12} cy={12} r={10} stroke={ICON_COLOR} strokeWidth={1.7} fill="none" />
-      <Path d="M12 7 V17 M7 12 H17" stroke={ICON_COLOR} strokeWidth={1.7} strokeLinecap="round" />
-    </Svg>
-  );
-}
-
 function MinusCircleIcon() {
   return (
     <Svg width={24} height={24} viewBox="0 0 24 24">
       <Circle cx={12} cy={12} r={10} stroke={ICON_COLOR} strokeWidth={1.7} fill="none" />
       <Path d="M7 12 H17" stroke={ICON_COLOR} strokeWidth={1.7} strokeLinecap="round" />
-    </Svg>
-  );
-}
-
-function QueuePlusIcon() {
-  return (
-    <Svg width={24} height={24} viewBox="0 0 24 24">
-      <Path d="M3 6 H17" stroke={ICON_COLOR} strokeWidth={1.8} strokeLinecap="round" />
-      <Path d="M3 12 H13" stroke={ICON_COLOR} strokeWidth={1.8} strokeLinecap="round" />
-      <Path d="M3 18 H10" stroke={ICON_COLOR} strokeWidth={1.8} strokeLinecap="round" />
-      <Path d="M18 13 V21 M14 17 H22" stroke={ICON_COLOR} strokeWidth={1.8} strokeLinecap="round" />
     </Svg>
   );
 }
@@ -72,30 +58,6 @@ function DiscIcon() {
       <Circle cx={12} cy={12} r={10} stroke={ICON_COLOR} strokeWidth={1.7} fill="none" />
       <Circle cx={12} cy={12} r={3} stroke={ICON_COLOR} strokeWidth={1.7} fill="none" />
       <Circle cx={12} cy={12} r={1} fill={ICON_COLOR} />
-    </Svg>
-  );
-}
-
-function CheckCircleIcon() {
-  return (
-    <Svg width={24} height={24} viewBox="0 0 24 24">
-      <Circle cx={12} cy={12} r={10} stroke="#1ED760" strokeWidth={1.7} fill="rgba(30,215,96,0.12)" />
-      <Path d="M7.5 12 L10.5 15 L16.5 9" stroke="#1ED760" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </Svg>
-  );
-}
-
-function PersonIcon() {
-  return (
-    <Svg width={24} height={24} viewBox="0 0 24 24">
-      <Circle cx={12} cy={8} r={4} stroke={ICON_COLOR} strokeWidth={1.7} fill="none" />
-      <Path
-        d="M4 20 C4 16 7.6 13 12 13 C16.4 13 20 16 20 20"
-        stroke={ICON_COLOR}
-        strokeWidth={1.7}
-        strokeLinecap="round"
-        fill="none"
-      />
     </Svg>
   );
 }
@@ -149,8 +111,8 @@ export default function SongOptionsSheet({
   onNavigateArtist,
 }: Props) {
   const t = useT();
-  const translateY = useRef(new Animated.Value(SH)).current;
-  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const translateY = useSharedValue(SH);
+  const overlayOpacity = useSharedValue(0);
   const [addPlaylistVisible, setAddPlaylistVisible] = useState(false);
 
   // Preserve last non-null track so the header stays visible during close animation
@@ -168,19 +130,33 @@ export default function SongOptionsSheet({
     : false;
   const isInPlaylist = trackId ? savedSet.has(trackId) : false;
 
+  const sheetStyle = useAnimatedStyle(() => ({transform: [{translateY: translateY.value}]}));
+  const overlayStyle = useAnimatedStyle(() => ({opacity: overlayOpacity.value}));
+
+  const handleGesture = Gesture.Pan()
+    .activeOffsetY([10, Infinity])
+    .onUpdate(e => {
+      'worklet';
+      if (e.translationY > 0) translateY.value = e.translationY;
+    })
+    .onEnd(e => {
+      'worklet';
+      if (e.translationY > 50 || e.velocityY > 300) {
+        runOnJS(onClose)();
+      } else {
+        translateY.value = withSpring(0, {damping: 20, stiffness: 200});
+      }
+    });
+
   useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.timing(translateY, {toValue: 0, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true}),
-        Animated.timing(overlayOpacity, {toValue: 0.7, duration: 200, useNativeDriver: true}),
-      ]).start();
+      translateY.value = withTiming(0, {duration: 300, easing: Easing.out(Easing.cubic)});
+      overlayOpacity.value = withTiming(0.7, {duration: 200});
     } else {
-      Animated.parallel([
-        Animated.timing(translateY, {toValue: SH, duration: 250, easing: Easing.in(Easing.cubic), useNativeDriver: true}),
-        Animated.timing(overlayOpacity, {toValue: 0, duration: 180, useNativeDriver: true}),
-      ]).start();
+      translateY.value = withTiming(SH, {duration: 250, easing: Easing.in(Easing.cubic)});
+      overlayOpacity.value = withTiming(0, {duration: 180});
     }
-  }, [visible, translateY, overlayOpacity]);
+  }, [visible]);
 
   const handleAddToQueue = useCallback(async () => {
     if (!tr) return;
@@ -221,8 +197,8 @@ export default function SongOptionsSheet({
   const handleToggleLike = useCallback(async () => {
     if (!trackId) return;
     onClose();
-    await toggleLike(trackId);
-    onToast(isLiked ? getT().likes.removedFromLiked : getT().likes.addedToLiked);
+    const ok = await toggleLike(trackId);
+    if (ok) onToast(isLiked ? getT().likes.removedFromLiked : getT().likes.addedToLiked);
   }, [trackId, onClose, toggleLike, isLiked, onToast]);
 
   const handleGoToAlbum = useCallback(() => {
@@ -235,75 +211,92 @@ export default function SongOptionsSheet({
     if (tr) onNavigateArtist?.(tr.artistId, tr.artist);
   }, [tr, onClose, onNavigateArtist]);
 
+  const handleDownload = useCallback(() => {
+    if (!tr) return;
+    onClose();
+    useDownloadStore.getState().enqueueTrack(tr);
+    onToast(getT().songOptions.downloadQueued);
+  }, [tr, onClose, onToast]);
+
   return (
     <>
       <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
-        <Animated.View
-          style={[StyleSheet.absoluteFill, styles.overlay, {opacity: overlayOpacity}]}
-          pointerEvents="none"
-        />
-        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
+        <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+          <Animated.View
+            style={[StyleSheet.absoluteFill, styles.overlay, overlayStyle]}
+            pointerEvents="none"
+          />
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
 
-        <Animated.View style={[styles.sheet, {transform: [{translateY}]}]}>
-          {/* Handle */}
-          <View style={styles.handleWrap}>
-            <View style={styles.handle} />
-          </View>
-
-          {/* Header */}
-          {tr && (
-            <View style={styles.header}>
-              <CoverArt id={tr.coverArt} size={48} borderRadius={4} />
-              <View style={styles.headerText}>
-                <Text style={styles.headerTitle} numberOfLines={1}>{tr.title}</Text>
-                <Text style={styles.headerSub} numberOfLines={1}>
-                  {tr.artist}{tr.album ? ` • ${tr.album}` : ''}
-                </Text>
+          <Animated.View style={[styles.sheet, sheetStyle]}>
+            <GestureDetector gesture={handleGesture}>
+              <View style={styles.handleWrap}>
+                <View style={styles.handle} />
               </View>
-            </View>
-          )}
-          <View style={styles.divider} />
+            </GestureDetector>
 
-          {/* Actions */}
-          <ActionRow
-            icon={isLiked
-              ? <HeartIcon size={22} color={darkTheme.accent} filled />
-              : <HeartIcon size={22} color={ICON_COLOR} />}
-            label={isLiked ? t.songOptions.removeFromLiked : t.songOptions.addToLiked}
-            onPress={handleToggleLike}
-          />
-          <ActionRow
-            icon={isInPlaylist ? <CheckCircleIcon /> : <PlusCircleIcon />}
-            label={isInPlaylist ? t.songOptions.manageInPlaylists : t.songOptions.addToPlaylist}
-            onPress={() => setAddPlaylistVisible(true)}
-          />
-          {playlistId != null && (
-            <ActionRow
-              icon={<MinusCircleIcon />}
-              label={t.songOptions.removeFromPlaylist}
-              onPress={handleRemoveFromPlaylist}
-            />
-          )}
-          <ActionRow
-            icon={<QueuePlusIcon />}
-            label={t.songOptions.addToQueue}
-            onPress={handleAddToQueue}
-          />
-          {tr?.albumId && onNavigateAlbum && (
-            <ActionRow
-              icon={<DiscIcon />}
-              label={t.songOptions.goToAlbum}
-              onPress={handleGoToAlbum}
-            />
-          )}
-          <ActionRow
-            icon={<PersonIcon />}
-            label={t.songOptions.goToArtist}
-            onPress={handleGoToArtist}
-          />
+              {/* Header */}
+              {tr && (
+                <View style={styles.header}>
+                  <CoverArt id={tr.coverArt} size={48} borderRadius={4} />
+                  <View style={styles.headerText}>
+                    <Text style={styles.headerTitle} numberOfLines={1}>{tr.title}</Text>
+                    <Text style={styles.headerSub} numberOfLines={1}>
+                      {tr.artist}{tr.album ? ` • ${tr.album}` : ''}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              <View style={styles.divider} />
 
-          <View style={styles.bottomPad} />
-        </Animated.View>
+              {/* Actions */}
+              <ActionRow
+                icon={isLiked
+                  ? <HeartIcon size={22} color={darkTheme.accent} filled />
+                  : <HeartIcon size={22} color={ICON_COLOR} />}
+                label={isLiked ? t.songOptions.removeFromLiked : t.songOptions.addToLiked}
+                onPress={handleToggleLike}
+              />
+              <ActionRow
+                icon={isInPlaylist ? <CheckCircleGreenIcon /> : <PlusCircleIcon color={ICON_COLOR} />}
+                label={isInPlaylist ? t.songOptions.manageInPlaylists : t.songOptions.addToPlaylist}
+                onPress={() => setAddPlaylistVisible(true)}
+              />
+              {playlistId != null && (
+                <ActionRow
+                  icon={<MinusCircleIcon />}
+                  label={t.songOptions.removeFromPlaylist}
+                  onPress={handleRemoveFromPlaylist}
+                />
+              )}
+              <ActionRow
+                icon={<QueueAddIcon />}
+                label={t.songOptions.addToQueue}
+                onPress={handleAddToQueue}
+              />
+              {tr && !String(tr.id).startsWith('ext-') && (
+                <ActionRow
+                  icon={<DownloadIcon size={22} color={ICON_COLOR} />}
+                  label={t.songOptions.download}
+                  onPress={handleDownload}
+                />
+              )}
+              {tr?.albumId && onNavigateAlbum && (
+                <ActionRow
+                  icon={<DiscIcon />}
+                  label={t.songOptions.goToAlbum}
+                  onPress={handleGoToAlbum}
+                />
+              )}
+              <ActionRow
+                icon={<PersonIcon color={ICON_COLOR} />}
+                label={t.songOptions.goToArtist}
+                onPress={handleGoToArtist}
+              />
+
+              <View style={styles.bottomPad} />
+          </Animated.View>
+        </GestureHandlerRootView>
       </Modal>
 
       <AddToPlaylistSheet

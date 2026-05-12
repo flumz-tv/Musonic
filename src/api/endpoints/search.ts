@@ -4,7 +4,7 @@
  *   enriches artist rows asynchronously with Deezer images (session-cached).
  *   The two operations are intentionally decoupled to keep search feel instant.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import {subsonicGet, getCoverArtUrl} from '../client';

@@ -3,7 +3,7 @@
  * @description Subsonic playlist API endpoints: list, get, create, update,
  *   replace (full reorder/removal), and delete playlists.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import {subsonicGet} from '../client';

@@ -4,7 +4,7 @@
  *   Replaces @react-navigation/drawer which caused a WorkletsError with
  *   react-native-reanimated v4 on New Architecture.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React, {
@@ -18,11 +18,12 @@ import {
   Animated,
   Dimensions,
   Easing,
-  PanResponder,
   StyleSheet,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import {Gesture, GestureDetector} from 'react-native-gesture-handler';
+import {runOnJS} from 'react-native-reanimated';
 import {darkTheme} from '../theme';
 import CustomDrawerContent from './CustomDrawerContent';
 
@@ -83,31 +84,29 @@ export default function DrawerContainer({children}: Props) {
     outputRange: [0, 0.5],
   });
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_e, gs) => Math.abs(gs.dx) > Math.abs(gs.dy),
-      onPanResponderRelease: (_e, gs) => {
-        if (gs.dx < -30 || gs.vx < -0.3) {
-          close();
-        }
-      },
-    }),
-  ).current;
+  const closeGesture = Gesture.Pan()
+    .activeOffsetX([-10, 10])
+    .onEnd(e => {
+      'worklet';
+      if (e.translationX < -30 || e.velocityX < -300) {
+        runOnJS(close)();
+      }
+    });
 
   return (
     <DrawerContext.Provider value={{open, close}}>
       <View style={styles.root}>
         {/* Drawer panel (behind main content) */}
         {visible && (
-          <Animated.View
-            style={[
-              styles.drawer,
-              {transform: [{translateX: drawerTranslateX}]},
-            ]}
-            {...panResponder.panHandlers}>
-            <CustomDrawerContent onClose={close} />
-          </Animated.View>
+          <GestureDetector gesture={closeGesture}>
+            <Animated.View
+              style={[
+                styles.drawer,
+                {transform: [{translateX: drawerTranslateX}]},
+              ]}>
+              <CustomDrawerContent onClose={close} />
+            </Animated.View>
+          </GestureDetector>
         )}
 
         {/* Animated main content */}

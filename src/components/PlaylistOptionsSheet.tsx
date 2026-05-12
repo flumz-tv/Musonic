@@ -3,21 +3,21 @@
  * @description Bottom sheet with playlist-level actions: add all to queue,
  *   add all to another playlist, pin/unpin, rename, edit cover, and delete.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React, {useCallback, useEffect, useRef} from 'react';
 import {
   Alert,
-  Animated,
   Dimensions,
-  Easing,
   Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, {useSharedValue, useAnimatedStyle, withTiming, withSpring, Easing, runOnJS} from 'react-native-reanimated';
+import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import Svg, {Circle, Path} from 'react-native-svg';
 import TrackPlayer from 'react-native-track-player';
 import CoverArt from './CoverArt';
@@ -156,6 +156,7 @@ type Props = {
   onOpenInfo?: () => void;
   onOpenCover?: () => void;
   onAddAll?: () => void;
+  onDownload?: () => void;
 };
 
 // ─── Action Row ───────────────────────────────────────────────────────────────
@@ -193,28 +194,43 @@ export default function PlaylistOptionsSheet({
   onOpenInfo,
   onOpenCover,
   onAddAll,
+  onDownload,
 }: Props) {
   const t = useT();
-  const translateY = useRef(new Animated.Value(SH)).current;
-  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const translateY = useSharedValue(SH);
+  const overlayOpacity = useSharedValue(0);
 
   const lastPlaylist = useRef(playlist);
   if (playlist) lastPlaylist.current = playlist;
   const p = lastPlaylist.current;
 
+  const sheetStyle = useAnimatedStyle(() => ({transform: [{translateY: translateY.value}]}));
+  const overlayStyle = useAnimatedStyle(() => ({opacity: overlayOpacity.value}));
+
+  const handleGesture = Gesture.Pan()
+    .activeOffsetY([10, Infinity])
+    .onUpdate(e => {
+      'worklet';
+      if (e.translationY > 0) translateY.value = e.translationY;
+    })
+    .onEnd(e => {
+      'worklet';
+      if (e.translationY > 50 || e.velocityY > 300) {
+        runOnJS(onClose)();
+      } else {
+        translateY.value = withSpring(0, {damping: 20, stiffness: 200});
+      }
+    });
+
   useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.timing(translateY, {toValue: 0, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true}),
-        Animated.timing(overlayOpacity, {toValue: 0.7, duration: 200, useNativeDriver: true}),
-      ]).start();
+      translateY.value = withTiming(0, {duration: 300, easing: Easing.out(Easing.cubic)});
+      overlayOpacity.value = withTiming(0.7, {duration: 200});
     } else {
-      Animated.parallel([
-        Animated.timing(translateY, {toValue: SH, duration: 250, easing: Easing.in(Easing.cubic), useNativeDriver: true}),
-        Animated.timing(overlayOpacity, {toValue: 0, duration: 180, useNativeDriver: true}),
-      ]).start();
+      translateY.value = withTiming(SH, {duration: 250, easing: Easing.in(Easing.cubic)});
+      overlayOpacity.value = withTiming(0, {duration: 180});
     }
-  }, [visible, translateY, overlayOpacity]);
+  }, [visible]);
 
   const handleAddToQueue = useCallback(async () => {
     if (!p) return;
@@ -274,60 +290,63 @@ export default function PlaylistOptionsSheet({
   return (
     <>
       <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
-        <Animated.View
-          style={[StyleSheet.absoluteFill, styles.overlay, {opacity: overlayOpacity}]}
-          pointerEvents="none"
-        />
-        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
+        <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+          <Animated.View
+            style={[StyleSheet.absoluteFill, styles.overlay, overlayStyle]}
+            pointerEvents="none"
+          />
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
 
-        <Animated.View style={[styles.sheet, {transform: [{translateY}]}]}>
-          {/* Handle */}
-          <View style={styles.handleWrap}>
-            <View style={styles.handle} />
-          </View>
-
-          {/* Header */}
-          {p && (
-            <View style={styles.header}>
-              <CoverArt id={p.coverArt} size={48} borderRadius={4} playlistId={p.id} />
-              <View style={styles.headerText}>
-                <Text style={styles.headerTitle} numberOfLines={1}>{p.name}</Text>
-                <Text style={styles.headerSub} numberOfLines={1}>
-                  {t.playlistOptions.byYou} • {t.playlistOptions.trackCount(p.songCount)}
-                </Text>
+          <Animated.View style={[styles.sheet, sheetStyle]}>
+            <GestureDetector gesture={handleGesture}>
+              <View style={styles.handleWrap}>
+                <View style={styles.handle} />
               </View>
-            </View>
-          )}
-          <View style={styles.divider} />
+            </GestureDetector>
 
-          {onStartEdit && (
-            <ActionRow icon={<HamburgerIcon />} label={t.playlistOptions.editPlaylist} onPress={() => { onClose(); onStartEdit(); }} />
-          )}
-          {onOpenInfo && (
-            <ActionRow icon={<PencilIcon />} label={t.playlistOptions.nameAndInfo} onPress={() => { onClose(); onOpenInfo(); }} />
-          )}
-          {onOpenCover && (
-            <ActionRow icon={<ImageIcon />} label={t.playlistOptions.editCover} onPress={() => { onClose(); onOpenCover(); }} />
-          )}
-          <ActionRow icon={<QueuePlusIcon />} label={t.playlistOptions.addToQueue} onPress={handleAddToQueue} />
-          <ActionRow icon={<DownloadCircleIcon />} label={t.playlistOptions.download} onPress={() => { onClose(); onToast(t.playlistOptions.comingSoon); }} />
-          {onAddAll && (
-            <ActionRow icon={<ListAddIcon />} label={t.playlistOptions.addAllToPlaylist} onPress={() => { onClose(); onAddAll(); }} />
-          )}
-          <ActionRow
-            icon={<PinIcon color={isPinned ? darkTheme.accent : ICON_COLOR} />}
-            label={isPinned ? t.playlistOptions.unpin : t.playlistOptions.pin}
-            onPress={handlePin}
-            accent={isPinned}
-          />
-          <ActionRow
-            icon={<TrashIcon color="#E84040" />}
-            label={t.playlistOptions.delete}
-            onPress={handleDelete}
-          />
+              {/* Header */}
+              {p && (
+                <View style={styles.header}>
+                  <CoverArt id={p.coverArt} size={48} borderRadius={4} playlistId={p.id} />
+                  <View style={styles.headerText}>
+                    <Text style={styles.headerTitle} numberOfLines={1}>{p.name}</Text>
+                    <Text style={styles.headerSub} numberOfLines={1}>
+                      {t.playlistOptions.byYou} • {t.playlistOptions.trackCount(p.songCount)}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              <View style={styles.divider} />
 
-          <View style={styles.bottomPad} />
-        </Animated.View>
+              {onStartEdit && (
+                <ActionRow icon={<HamburgerIcon />} label={t.playlistOptions.editPlaylist} onPress={() => { onClose(); onStartEdit(); }} />
+              )}
+              {onOpenInfo && (
+                <ActionRow icon={<PencilIcon />} label={t.playlistOptions.nameAndInfo} onPress={() => { onClose(); onOpenInfo(); }} />
+              )}
+              {onOpenCover && (
+                <ActionRow icon={<ImageIcon />} label={t.playlistOptions.editCover} onPress={() => { onClose(); onOpenCover(); }} />
+              )}
+              <ActionRow icon={<QueuePlusIcon />} label={t.playlistOptions.addToQueue} onPress={handleAddToQueue} />
+              <ActionRow icon={<DownloadCircleIcon />} label={t.playlistOptions.download} onPress={() => { onClose(); onDownload ? onDownload() : onToast(t.playlistOptions.comingSoon); }} />
+              {onAddAll && (
+                <ActionRow icon={<ListAddIcon />} label={t.playlistOptions.addAllToPlaylist} onPress={() => { onClose(); onAddAll(); }} />
+              )}
+              <ActionRow
+                icon={<PinIcon color={isPinned ? darkTheme.accent : ICON_COLOR} />}
+                label={isPinned ? t.playlistOptions.unpin : t.playlistOptions.pin}
+                onPress={handlePin}
+                accent={isPinned}
+              />
+              <ActionRow
+                icon={<TrashIcon color="#E84040" />}
+                label={t.playlistOptions.delete}
+                onPress={handleDelete}
+              />
+
+              <View style={styles.bottomPad} />
+          </Animated.View>
+        </GestureHandlerRootView>
       </Modal>
 
     </>

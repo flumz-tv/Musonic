@@ -3,7 +3,7 @@
  * @description Liked Songs screen. Displays all starred tracks with playback,
  *   add-to-playlist, and remove-from-liked actions.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license MIT
  */
 
@@ -12,16 +12,18 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
   StatusBar,
   ActivityIndicator,
 } from 'react-native';
+import {FlashList} from '@shopify/flash-list';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
-import Svg, {Path} from 'react-native-svg';
 import {darkTheme} from '../../theme';
+import BackArrowIcon from '../../components/icons/BackArrowIcon';
+import PlayIcon from '../../components/icons/PlayIcon';
+import DotsVerticalIcon from '../../components/icons/DotsVerticalIcon';
 import {getStarred} from '../../api/endpoints/library';
 import {getStreamUrl, getCoverArtUrl} from '../../api/client';
 import {loadAndPlayTracks} from '../../services/playerActions';
@@ -34,40 +36,6 @@ import ShuffleIcon from '../../components/icons/ShuffleIcon';
 import SongOptionsSheet from '../../components/SongOptionsSheet';
 import {showToast} from '../../components/Toast';
 import {useT} from '../../i18n';
-
-// ─── Icons ───────────────────────────────────────────────────────────────────
-
-function BackIcon() {
-  return (
-    <Svg width={24} height={24} viewBox="0 0 24 24">
-      <Path
-        d="M20 12 H4 M10 18 L4 12 L10 6"
-        stroke="#fff"
-        strokeWidth={2.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </Svg>
-  );
-}
-
-function PlayIcon() {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="#000">
-      <Path d="M6 4l14 8-14 8V4z" />
-    </Svg>
-  );
-}
-
-
-function ThreeDotsIcon() {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="#b3b3b3">
-      <Path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-    </Svg>
-  );
-}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -92,6 +60,7 @@ export default function LikedSongsScreen() {
   const t = useT();
   const navigation = useNavigation<any>();
   const isShuffled = usePlayerStore(s => s.isShuffled);
+  const shuffleMode = usePlayerStore(s => s.shuffleMode);
   const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
   const setLikedSongs = usePlayerStore(s => s.setLikedSongs);
   const localLikeOverrides = usePlayerStore(s => s.localLikeOverrides);
@@ -144,10 +113,11 @@ export default function LikedSongsScreen() {
     <SafeAreaView style={styles.root} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor="#1a1040" />
 
-      <FlatList
+      <FlashList
         data={displayedSongs}
         keyExtractor={s => s.id}
         showsVerticalScrollIndicator={false}
+        estimatedItemSize={64}
         ListHeaderComponent={
           <View>
             <LinearGradient
@@ -156,7 +126,7 @@ export default function LikedSongsScreen() {
               <TouchableOpacity
                 style={styles.backBtn}
                 onPress={() => navigation.goBack()}>
-                <BackIcon />
+                <BackArrowIcon />
               </TouchableOpacity>
               <LinearGradient
                 colors={['#6B2FA0', '#1E3A8A']}
@@ -175,7 +145,7 @@ export default function LikedSongsScreen() {
                   style={styles.shuffleBtn}
                   onPress={toggleShuffle}
                   activeOpacity={0.8}>
-                  <ShuffleIcon active={isShuffled} />
+                  <ShuffleIcon mode={shuffleMode} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.playBtn}
@@ -217,7 +187,7 @@ export default function LikedSongsScreen() {
               style={styles.moreBtn}
               onPress={() => handleMore(item)}
               hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-              <ThreeDotsIcon />
+              <DotsVerticalIcon size={20} color="#b3b3b3" />
             </TouchableOpacity>
           </TouchableOpacity>
         )}

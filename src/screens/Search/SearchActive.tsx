@@ -4,7 +4,7 @@
  *   interleave. Subsonic results are immediate; Deezer artist images are enriched
  *   asynchronously using a generation counter to prevent race conditions.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React, {useState, useEffect, useRef, useCallback, memo} from 'react';
@@ -15,6 +15,8 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import Svg, {Path, Circle} from 'react-native-svg';
+import BackArrowIcon from '../../components/icons/BackArrowIcon';
+import DotsVerticalIcon from '../../components/icons/DotsVerticalIcon';
 import {darkTheme} from '../../theme';
 import {search, getDeezerArtistImageCached} from '../../api/endpoints/search';
 import {getStreamUrl, getCoverArtUrl} from '../../api/client';
@@ -65,26 +67,6 @@ function songToTrack(s: SubsonicSong): Track {
 }
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
-
-function BackIcon({size = 24, color = '#fff'}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Path
-        d="M20 12 H4 M10 18 L4 12 L10 6"
-        stroke={color} strokeWidth={2.5}
-        strokeLinecap="round" strokeLinejoin="round" fill="none"
-      />
-    </Svg>
-  );
-}
-
-function ThreeDotsIcon({size = 20, color = '#b3b3b3'}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <Path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-    </Svg>
-  );
-}
 
 function ClockIcon({size = 18, color = '#707070'}) {
   return (
@@ -157,7 +139,7 @@ function SongResultRow({
         style={styles.moreBtn}
         onPress={onMore}
         hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-        <ThreeDotsIcon />
+        <DotsVerticalIcon size={20} color="#b3b3b3" />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -325,7 +307,7 @@ export default function SearchActive() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <BackIcon />
+          <BackArrowIcon />
         </TouchableOpacity>
         <View style={styles.searchBar}>
           <TextInput

@@ -4,7 +4,7 @@
 
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 [![React Native](https://img.shields.io/badge/React%20Native-0.85-61DAFB?logo=react)](https://reactnative.dev)
-[![Version](https://img.shields.io/badge/version-0.9.4-orange)](https://github.com/DoodzProg/Musonic/releases)
+[![Version](https://img.shields.io/badge/version-1.0.0-orange)](https://github.com/DoodzProg/Musonic/releases)
 
 A modern, Spotify-inspired Subsonic/Navidrome client built with React Native (New Architecture).  
 Designed for OctoFiesta + Navidrome but compatible with any Subsonic-compatible server.
@@ -13,7 +13,7 @@ Designed for OctoFiesta + Navidrome but compatible with any Subsonic-compatible 
 
 ## Features
 
-- **Full-screen player** — ambient halo background, swipeable cover carousel, waveform scrubber
+- **Full-screen player** — ambient halo background, animated cover art, waveform scrubber
 - **Mini player** — sticky bottom bar with swipe-to-skip gesture
 - **Queue management** — drag-and-drop reordering, remove, move-to-top
 - **Playlist management** — create, rename, edit cover, delete; drag-and-drop track reordering
@@ -21,8 +21,11 @@ Designed for OctoFiesta + Navidrome but compatible with any Subsonic-compatible 
 - **Artist & Album detail** — cover art, top songs, discography, artist photo via Deezer (no API key)
 - **Home screen** — quick-access grid, filter pills (Recent, Frequent, Recommendations, Discover)
 - **Liked Songs** — star/unstar with optimistic UI and offline retry
-- **Search** — songs, artists, albums; Deezer artist images enriched asynchronously
-- **Offline resilience** — credentials and preferences persisted via MMKV
+- **Search** — songs, artists, albums; Discover tab with Deezer-powered recommendations (6 sections)
+- **Offline mode (Beta)** — manual or auto-detected via connectivity ping; playlist and track metadata cached for local playback
+- **Track downloads** — save Navidrome tracks to device; delete individually or by full playlist
+- **Autoplay** — automatic queue extension with Deezer + Navidrome similar tracks when queue ends
+- **Shuffle Magic** — genre-aware third shuffle state powered by Deezer recommendations
 - **i18n ready** — French and English UI strings; language switchable in Settings
 
 ---
@@ -162,9 +165,9 @@ cd android
 ```
 src/
 ├── api/
-│   ├── client.ts          Subsonic axios client, URL helpers
+│   ├── client.ts          Subsonic fetch client, URL helpers
 │   ├── types.ts           TypeScript type definitions
-│   ├── deezer.ts          Deezer public API — artist image helper (no key required)
+│   ├── deezer.ts          Deezer public API — recommendations, artist images (no key required)
 │   ├── apiKeys.example.ts API key template (no keys currently required)
 │   └── endpoints/
 │       ├── library.ts     getRecentAlbums, getStarred, star/unstar, similar songs
@@ -176,9 +179,9 @@ src/
 ├── navigation/            RootNavigator, TabNavigator, stacks, type definitions
 ├── screens/               Home, Search, Library, AlbumDetail, ArtistDetail,
 │                          PlaylistDetail, LikedSongs, Settings, ServerSetup
-├── services/              PlaybackService (headless), playerActions, connectivity
-├── store/                 Zustand stores: player, settings, network, search history,
-│                          playlist membership cache
+├── services/              PlaybackService (headless), playerActions, connectivityService
+├── store/                 Zustand stores: player, settings, search history,
+│                          playlist cache, download store, playlist membership cache
 ├── theme/                 Design tokens, dark theme object
 └── utils/                 colorUtils (hex blending, ID-to-colour mapping)
 ```
@@ -189,6 +192,12 @@ src/
 
 ### Audio Engine
 React Native Track Player 4.1.2, patched for New Architecture (37 `scope.launch` fixes). `playerStore` is the UI source of truth; RNTP is the audio source of truth. `AudioPlayer.tsx` bridges RNTP events → store.
+
+### HTTP Client
+`axios` was removed in v1.0.0. All API calls use native `fetch` with `AbortController` for cancellation and `URLSearchParams` for query string construction.
+
+### Offline & Download
+`connectivityService` pings the server periodically and sets `isOfflineMode` in `settingsStore`. `playlistCacheStore` holds playlist metadata + song lists for offline access. `downloadStore` manages per-track file downloads to device storage with a semaphore (max 3 concurrent), MMKV persistence, and `getTotalSizeBytes()` for storage reporting. Only Navidrome-indexed tracks are downloadable; Deezer-sourced tracks (`ext-` prefix) are silently skipped.
 
 ### Drawer Navigation
 `@react-navigation/drawer` is **not used directly** — it caused a `WorkletsError` with react-native-reanimated v4. A custom `DrawerContainer` (React context + `Animated`) replaces it. `react-native-reanimated/plugin` must remain **last** in `babel.config.js`.
@@ -221,7 +230,7 @@ Conçu pour OctoFiesta + Navidrome, mais compatible avec tout serveur compatible
 
 ## Fonctionnalités
 
-- **Lecteur plein écran** — fond ambiant, carousel de pochettes, scrubber waveform
+- **Lecteur plein écran** — fond ambiant, pochette animée, scrubber waveform
 - **Mini-lecteur** — barre sticky avec geste swipe-to-skip
 - **File d'attente** — réorganisation drag-and-drop, suppression, monter en tête
 - **Gestion des playlists** — créer, renommer, modifier la pochette, supprimer ; réorganisation drag-and-drop
@@ -229,8 +238,11 @@ Conçu pour OctoFiesta + Navidrome, mais compatible avec tout serveur compatible
 - **Détail Artiste & Album** — pochette, titres populaires, discographie, photo artiste via Deezer (sans clé API)
 - **Accueil** — grille d'accès rapide, filtres (Récent, Fréquent, Recommandations, À découvrir)
 - **Titres likés** — aimer/dé-liker avec UI optimiste et retry hors-ligne
-- **Recherche** — titres, artistes, albums ; images artiste Deezer enrichies de façon asynchrone
-- **Résilience hors-ligne** — identifiants et préférences persistés via MMKV
+- **Recherche** — titres, artistes, albums ; onglet Découvrir avec recommandations Deezer (6 sections)
+- **Mode hors-ligne (Bêta)** — manuel ou auto-détecté via ping ; playlists et métadonnées mises en cache pour lecture locale
+- **Téléchargements** — sauvegarder des titres Navidrome sur l'appareil ; supprimer individuellement ou par playlist
+- **Lecture automatique** — extension automatique de la file avec des titres similaires Deezer + Navidrome
+- **Shuffle Magic** — troisième état de lecture aléatoire basé sur les recommandations Deezer
 - **i18n** — français et anglais ; langue changeante dans les Paramètres
 
 ---
@@ -339,9 +351,9 @@ cd android
 ```
 src/
 ├── api/
-│   ├── client.ts          Client axios Subsonic, helpers URL
+│   ├── client.ts          Client fetch Subsonic, helpers URL
 │   ├── types.ts           Définitions de types TypeScript
-│   ├── deezer.ts          API publique Deezer — helper images artiste (sans clé)
+│   ├── deezer.ts          API publique Deezer — recommandations, images artiste (sans clé)
 │   ├── apiKeys.example.ts Modèle de clés API (aucune clé requise actuellement)
 │   └── endpoints/
 │       ├── library.ts     getRecentAlbums, getStarred, star/unstar, titres similaires
@@ -353,9 +365,9 @@ src/
 ├── navigation/            RootNavigator, TabNavigator, stacks, types
 ├── screens/               Home, Search, Library, AlbumDetail, ArtistDetail,
 │                          PlaylistDetail, LikedSongs, Settings, ServerSetup
-├── services/              PlaybackService (headless), playerActions, connectivité
-├── store/                 Stores Zustand : lecteur, paramètres, réseau,
-│                          historique de recherche, cache d'appartenance playlist
+├── services/              PlaybackService (headless), playerActions, connectivityService
+├── store/                 Stores Zustand : lecteur, paramètres, historique recherche,
+│                          cache playlists, téléchargements, appartenance playlist
 ├── theme/                 Design tokens, objet dark theme
 └── utils/                 colorUtils (mélange hex, mapping ID → couleur)
 ```

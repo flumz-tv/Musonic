@@ -4,7 +4,7 @@
  *   username and password, validates credentials against the Subsonic API, and
  *   persists the server configuration via settingsStore.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license MIT
  */
 
@@ -51,7 +51,6 @@ function friendlyError(e: any): string {
 
 export default function ServerSetupScreen() {
   const t = useT();
-  const [name, setName] = useState('Mon serveur');
   const [url, setUrl] = useState('https://');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -73,7 +72,7 @@ export default function ServerSetupScreen() {
 
     const candidate: Server = {
       id: Date.now().toString(),
-      name: name.trim() || t.serverSetup.serverNamePlaceholder,
+      name: url.trim(),
       url: url.trim(),
       username: username.trim(),
       password: password.trim(),
@@ -95,7 +94,7 @@ export default function ServerSetupScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled">
@@ -103,15 +102,6 @@ export default function ServerSetupScreen() {
         <Text style={styles.subtitle}>{t.serverSetup.subtitle}</Text>
 
         <View style={styles.form}>
-          <Text style={styles.label}>{t.serverSetup.serverNameLabel}</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder={t.serverSetup.serverNamePlaceholder}
-            placeholderTextColor={darkTheme.textSecondary}
-          />
-
           <Text style={styles.label}>{t.serverSetup.serverUrlLabel}</Text>
           <TextInput
             style={styles.input}

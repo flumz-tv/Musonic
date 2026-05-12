@@ -3,7 +3,7 @@
  * @description Application entry point. Registers the React Native app and the
  *   RNTP headless playback service that keeps audio running in the background.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import {AppRegistry} from 'react-native';

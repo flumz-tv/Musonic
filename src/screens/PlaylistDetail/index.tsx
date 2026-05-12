@@ -4,16 +4,16 @@
  *   drag-and-drop reordering, inline search, edit mode, recommended track
  *   suggestions, and full CRUD support (add, remove, rename).
  * @author DoodzProg
- * @version 0.9.2
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
-  FlatList,
   Image,
   StatusBar,
   StyleSheet,
@@ -22,6 +22,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import {FlashList} from '@shopify/flash-list';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import type {RouteProp} from '@react-navigation/native';
@@ -32,15 +33,21 @@ import ImageColors from 'react-native-image-colors';
 import {darkTheme} from '../../theme';
 import CoverArt from '../../components/CoverArt';
 import {getPlaylist, replacePlaylist} from '../../api/endpoints/playlists';
+import {
+  getDeezerArtistId,
+  getDeezerArtistTopTracks,
+  enrichTracksWithAlbumType,
+  type DeezerTrack,
+} from '../../api/deezer';
 import {loadAndPlayPlaylist, loadAndPlayTracks} from '../../services/playerActions';
 import ShuffleIcon from '../../components/icons/ShuffleIcon';
-import {usePlaybackState, State} from 'react-native-track-player';
+import TrackPlayer, {useActiveTrack, usePlaybackState, State} from 'react-native-track-player';
 import {usePlayerStore} from '../../store/playerStore';
 import {colorFromId} from '../../utils/colorUtils';
 import type {SubsonicSong} from '../../api/types';
 import type {LibraryStackParams} from '../../navigation/types';
 import {getCoverArtUrl, getStreamUrl} from '../../api/client';
-import type {Track} from '../../store/playerStore';
+import type {Track, ShuffleMode} from '../../store/playerStore';
 import DraggableFlatList, {ScaleDecorator} from 'react-native-draggable-flatlist';
 import type {RenderItemParams} from 'react-native-draggable-flatlist';
 import SongOptionsSheet from '../../components/SongOptionsSheet';
@@ -49,8 +56,17 @@ import AddToPlaylistSheet from '../../components/AddToPlaylistSheet';
 import PlaylistInfoModal, {getLocalCoverUri} from '../../components/PlaylistInfoModal';
 import {showToast} from '../../components/Toast';
 import {useT, getT} from '../../i18n';
-import {fetchAndCachePlaylistSongs} from '../../store/playlistCacheStore';
+import {fetchAndCachePlaylistSongs, usePlaylistCacheStore} from '../../store/playlistCacheStore';
 import BackArrowIcon from '../../components/icons/BackArrowIcon';
+import PlayIcon from '../../components/icons/PlayIcon';
+import HeartIcon from '../../components/icons/HeartIcon';
+import DotsHorizontalIcon from '../../components/icons/DotsHorizontalIcon';
+import DotsVerticalIcon from '../../components/icons/DotsVerticalIcon';
+import DownloadIcon from '../../components/icons/DownloadIcon';
+import DownloadStatusIcon from '../../components/icons/DownloadStatusIcon';
+import PlusCircleIconComponent from '../../components/icons/PlusCircleIcon';
+import {useDownloadStore, type DownloadedTrack} from '../../store/downloadStore';
+import {useSettingsStore} from '../../store/settingsStore';
 
 const {width: SCREEN_W, height: SCREEN_H} = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 80, 260);
@@ -157,57 +173,11 @@ function SearchSmIcon({size = 18, color = '#888'}: {size?: number; color?: strin
   );
 }
 
-function DownloadIcon({size = 22, color = '#fff'}: {size?: number; color?: string}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Circle cx={12} cy={12} r={9} stroke={color} strokeWidth={1.8} fill="none" />
-      <Path
-        d="M12 7 V14 M9 12 L12 15 L15 12"
-        stroke={color}
-        strokeWidth={1.8}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </Svg>
-  );
-}
-
-
-function MoreDotsIcon({size = 22, color = '#fff'}: {size?: number; color?: string}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Circle cx={5} cy={12} r={1.8} fill={color} />
-      <Circle cx={12} cy={12} r={1.8} fill={color} />
-      <Circle cx={19} cy={12} r={1.8} fill={color} />
-    </Svg>
-  );
-}
-
-
-function PlayIcon({size = 22, color = '#000'}: {size?: number; color?: string}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Path d="M7 4 L21 12 L7 20 Z" fill={color} />
-    </Svg>
-  );
-}
-
 function PauseIcon({size = 22, color = '#000'}: {size?: number; color?: string}) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path d="M6 4 L6 20" stroke={color} strokeWidth={3.5} strokeLinecap="round" />
       <Path d="M18 4 L18 20" stroke={color} strokeWidth={3.5} strokeLinecap="round" />
-    </Svg>
-  );
-}
-
-function ThreeDotsVertIcon({size = 18, color = '#888'}: {size?: number; color?: string}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Circle cx={12} cy={5} r={1.8} fill={color} />
-      <Circle cx={12} cy={12} r={1.8} fill={color} />
-      <Circle cx={12} cy={19} r={1.8} fill={color} />
     </Svg>
   );
 }
@@ -242,36 +212,6 @@ function PencilIcon({size = 15, color = '#fff'}: {size?: number; color?: string}
         strokeLinejoin="round"
         fill="none"
       />
-    </Svg>
-  );
-}
-
-function PlusCircleIcon({size = 26, color = 'rgba(255,255,255,0.45)'}: {size?: number; color?: string}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Circle cx={12} cy={12} r={9.5} stroke={color} strokeWidth={1.6} fill="none" />
-      <Path
-        d="M12 8 V16 M8 12 H16"
-        stroke={color}
-        strokeWidth={1.8}
-        strokeLinecap="round"
-      />
-    </Svg>
-  );
-}
-
-function MusicNoteIcon({size = 20, color = '#666'}: {size?: number; color?: string}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Path
-        d="M9 18 V5 L21 3 V16"
-        stroke={color}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        fill="none"
-      />
-      <Circle cx={6} cy={18} r={3} stroke={color} strokeWidth={1.5} fill="none" />
-      <Circle cx={18} cy={16} r={3} stroke={color} strokeWidth={1.5} fill="none" />
     </Svg>
   );
 }
@@ -311,14 +251,32 @@ function LikedCover({size, radius = 8}: {size: number; radius?: number}) {
   );
 }
 
-// ─── Placeholder recommendations ──────────────────────────────────────────────
+// ─── Deezer recommendation helpers ────────────────────────────────────────────
 
-const MOCK_RECS = [
-  {id: 'rec1', title: 'Blinding Lights', artist: 'The Weeknd'},
-  {id: 'rec2', title: 'Levitating', artist: 'Dua Lipa'},
-  {id: 'rec3', title: 'Stay', artist: 'The Kid LAROI'},
-  {id: 'rec4', title: 'Shivers', artist: 'Ed Sheeran'},
-];
+function dedupeById(tracks: DeezerTrack[]): DeezerTrack[] {
+  const seen = new Set<number>();
+  return tracks.filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+}
+
+function dedupeByArtistMax3(tracks: DeezerTrack[]): DeezerTrack[] {
+  const artistCount = new Map<number, number>();
+  return tracks.filter(t => {
+    const count = artistCount.get(t.artist.id) ?? 0;
+    if (count >= 3) return false;
+    artistCount.set(t.artist.id, count + 1);
+    return true;
+  });
+}
+
+function deezerTrackToInternalTrack(t: DeezerTrack): Track {
+  const sid = `ext-deezer-song-${t.id}`;
+  return {
+    id: sid, title: t.title, artist: t.artist.name, album: t.album.title,
+    duration: t.duration, coverArt: sid,
+    streamUrl: getStreamUrl(sid), url: getStreamUrl(sid),
+    artwork: getCoverArtUrl(sid, 300), artistId: undefined,
+  };
+}
 
 // ─── Song row ─────────────────────────────────────────────────────────────────
 
@@ -327,9 +285,39 @@ type SongRowProps = {
   isActive: boolean;
   onPress: () => void;
   onMorePress: () => void;
+  onDownloadPress: () => void;
 };
 
-function SongRow({song, isActive, onPress, onMorePress}: SongRowProps) {
+function SongRow({song, isActive, onPress, onMorePress, onDownloadPress}: SongRowProps) {
+  const trackId = String(song.id);
+  const likedSongIds = usePlayerStore(s => s.likedSongIds);
+  const localLikeOverrides = usePlayerStore(s => s.localLikeOverrides);
+  const toggleLike = usePlayerStore(s => s.toggleLike);
+  const isDownloaded = useDownloadStore(s => trackId in s.downloads);
+  const isLiked = localLikeOverrides[trackId] !== undefined
+    ? localLikeOverrides[trackId]
+    : likedSongIds.has(trackId);
+
+  const handleDownloadPress = () => {
+    if (isDownloaded) {
+      const d = getT();
+      Alert.alert(
+        d.downloads.deleteSongTitle,
+        d.downloads.deleteSongMessage(song.title),
+        [
+          {text: d.downloads.cancelButton, style: 'cancel'},
+          {
+            text: d.downloads.deleteConfirm,
+            style: 'destructive',
+            onPress: () => useDownloadStore.getState().deleteDownload(trackId),
+          },
+        ],
+      );
+    } else {
+      onDownloadPress();
+    }
+  };
+
   return (
     <TouchableOpacity
       style={styles.songRow}
@@ -347,10 +335,20 @@ function SongRow({song, isActive, onPress, onMorePress}: SongRowProps) {
         </Text>
       </View>
       <TouchableOpacity
+        hitSlop={{top: 10, bottom: 10, left: 8, right: 6}}
+        onPress={() => toggleLike(trackId)}>
+        <HeartIcon size={18} color={isLiked ? '#E8553E' : '#444'} filled={isLiked} />
+      </TouchableOpacity>
+      <TouchableOpacity
+        hitSlop={{top: 10, bottom: 10, left: 6, right: 4}}
+        onPress={handleDownloadPress}>
+        <DownloadStatusIcon trackId={trackId} size={20} />
+      </TouchableOpacity>
+      <TouchableOpacity
         style={styles.songDots}
-        hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}
+        hitSlop={{top: 8, bottom: 8, left: 4, right: 8}}
         onPress={onMorePress}>
-        <ThreeDotsVertIcon />
+        <DotsVerticalIcon />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -366,6 +364,7 @@ type HeaderProps = {
   songCount: number;
   totalDuration: number;
   isShuffled: boolean;
+  shuffleMode: ShuffleMode;
   isThisPlaylistActive: boolean;
   isGlobalPlaying: boolean;
   loadingPlaylist: boolean;
@@ -378,6 +377,9 @@ type HeaderProps = {
   onMorePress: () => void;
   onStartEdit: () => void;
   onOpenInfo: () => void;
+  onDownload: () => void;
+  onDeleteDownloads: () => void;
+  allDownloaded: boolean;
 };
 
 function PlaylistHeader({
@@ -388,6 +390,7 @@ function PlaylistHeader({
   songCount,
   totalDuration,
   isShuffled,
+  shuffleMode,
   isThisPlaylistActive,
   isGlobalPlaying,
   loadingPlaylist,
@@ -400,6 +403,9 @@ function PlaylistHeader({
   onMorePress,
   onStartEdit,
   onOpenInfo,
+  onDownload,
+  onDeleteDownloads,
+  allDownloaded,
 }: HeaderProps) {
   const t = useT();
   const showPause = isThisPlaylistActive && isGlobalPlaying;
@@ -464,11 +470,14 @@ function PlaylistHeader({
       {/* Actions */}
       <View style={styles.actionsRow}>
         <View style={styles.actionsLeft}>
-          <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
-            <DownloadIcon size={22} />
+          <TouchableOpacity
+            style={styles.actionBtn}
+            activeOpacity={0.7}
+            onPress={allDownloaded ? onDeleteDownloads : onDownload}>
+            <DownloadIcon size={22} color={allDownloaded ? '#1ED760' : '#fff'} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={onMorePress}>
-            <MoreDotsIcon size={22} />
+            <DotsHorizontalIcon size={22} />
           </TouchableOpacity>
         </View>
         <View style={styles.actionsRight}>
@@ -476,7 +485,7 @@ function PlaylistHeader({
             style={styles.actionBtn}
             onPress={onShuffle}
             activeOpacity={0.7}>
-            <ShuffleIcon size={24} active={isShuffled} />
+            <ShuffleIcon size={24} mode={shuffleMode} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.playBtn}
@@ -488,6 +497,7 @@ function PlaylistHeader({
               <PauseIcon size={24} color="#000" />
             ) : (
               <PlayIcon size={24} color="#000" />
+
             )}
           </TouchableOpacity>
         </View>
@@ -514,30 +524,51 @@ function PlaylistHeader({
 
 // ─── List Footer ──────────────────────────────────────────────────────────────
 
-function PlaylistFooter() {
+type FooterProps = {
+  recoTracks: DeezerTrack[];
+  recoLoading: boolean;
+  onPressRec: (t: DeezerTrack) => void;
+  onAddRec: (t: DeezerTrack) => void;
+};
+
+function PlaylistFooter({recoTracks, recoLoading, onPressRec, onAddRec}: FooterProps) {
   const t = useT();
   return (
     <View style={styles.recoSection}>
       <Text style={styles.recoTitle}>{t.playlistDetail.recommendations.title}</Text>
       <Text style={styles.recoSub}>{t.playlistDetail.recommendations.subtitle}</Text>
-      {MOCK_RECS.map(rec => (
-        <View key={rec.id} style={styles.recoRow}>
-          <View style={styles.recoCover}>
-            <MusicNoteIcon size={18} color="#555" />
-          </View>
+
+      {recoLoading && recoTracks.length === 0 && (
+        <View style={styles.recoLoadingRow}>
+          <ActivityIndicator size="small" color={darkTheme.accent} />
+          <Text style={styles.recoArtist}>{t.playlistDetail.recommendations.loading}</Text>
+        </View>
+      )}
+
+      {recoTracks.map(track => (
+        <TouchableOpacity
+          key={track.id}
+          style={styles.recoRow}
+          onPress={() => onPressRec(track)}
+          activeOpacity={0.7}>
+          <Image
+            source={{uri: track.album.cover_medium}}
+            style={styles.recoCoverImg}
+          />
           <View style={styles.recoInfo}>
             <Text style={styles.recoName} numberOfLines={1}>
-              {rec.title}
+              {track.title}
             </Text>
             <Text style={styles.recoArtist} numberOfLines={1}>
-              {rec.artist}
+              {track.artist.name}
             </Text>
           </View>
           <TouchableOpacity
+            onPress={() => onAddRec(track)}
             hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
-            <PlusCircleIcon size={26} />
+            <PlusCircleIconComponent size={26} color="rgba(255,255,255,0.45)" />
           </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       ))}
     </View>
   );
@@ -616,6 +647,30 @@ function EditSongRow({
   );
 }
 
+// ─── Offline Footer ───────────────────────────────────────────────────────────
+
+function OfflineFooter({label, tracks, onPressTrack}: {
+  label: string;
+  tracks: DownloadedTrack[];
+  onPressTrack: (track: DownloadedTrack) => void;
+}) {
+  if (!tracks.length) return null;
+  return (
+    <View style={styles.recoSection}>
+      <Text style={styles.recoTitle}>{label}</Text>
+      {tracks.map(t => (
+        <TouchableOpacity key={t.trackId} style={styles.recoRow} onPress={() => onPressTrack(t)} activeOpacity={0.7}>
+          <CoverArt id={t.coverArt} size={44} borderRadius={4} />
+          <View style={styles.recoInfo}>
+            <Text style={styles.recoName} numberOfLines={1}>{t.title}</Text>
+            <Text style={styles.recoArtist} numberOfLines={1}>{t.artist}</Text>
+          </View>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 type RouteT = RouteProp<LibraryStackParams, 'PlaylistDetail'>;
@@ -625,7 +680,7 @@ export default function PlaylistDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<LibraryStackParams, 'PlaylistDetail'>>();
   const route = useRoute<RouteT>();
-  const {playlistId} = route.params;
+  const {playlistId, autoEdit} = route.params;
 
   const [playlistName, setPlaylistName] = useState('');
   const [description, setDescription] = useState('');
@@ -633,6 +688,9 @@ export default function PlaylistDetailScreen() {
   const [coverArtId, setCoverArtId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [loadingPlaylist, setLoadingPlaylist] = useState(false);
+  const [recoTracks, setRecoTracks] = useState<DeezerTrack[]>([]);
+  const [recoLoading, setRecoLoading] = useState(false);
+  const recoFetchedRef = useRef(false);
   const [query, setQuery] = useState('');
 
   // Edit mode
@@ -653,16 +711,22 @@ export default function PlaylistDetailScreen() {
   const isGlobalPlaying = playbackState.state === State.Playing;
   const currentPlaylistId = usePlayerStore(s => s.currentPlaylistId);
   const isShuffled = usePlayerStore(s => s.isShuffled);
+  const shuffleMode = usePlayerStore(s => s.shuffleMode);
   const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
   const togglePlay = usePlayerStore(s => s.togglePlay);
+  const isOfflineMode = useSettingsStore(s => s.isOfflineMode);
+  const downloads = useDownloadStore(s => s.downloads);
+  const t = useT();
 
   const isThisPlaylistActive = currentPlaylistId === playlistId;
 
-  // history.length == index of the currently playing track in the RNTP queue.
-  // AudioPlayer syncs this from PlaybackActiveTrackChanged, so it stays current.
-  // -1 when this playlist is not the active context, so no row highlights.
-  const queueHistory = usePlayerStore(s => s.history);
-  const activeQueueIndex = isThisPlaylistActive ? queueHistory.length : -1;
+  // Track the active RNTP track by ID so the highlight stays correct under shuffle.
+  const activeTrack = useActiveTrack();
+  const activeTrackId = activeTrack?.id ? String(activeTrack.id) : null;
+  const [currentQueueIdx, setCurrentQueueIdx] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    TrackPlayer.getActiveTrackIndex().then(setCurrentQueueIdx).catch(() => {});
+  }, [activeTrackId]);
 
   const dominantColor = usePlaylistColor(coverArtId);
   const topBarH = insets.top + TOP_BAR_H;
@@ -688,6 +752,17 @@ export default function PlaylistDetailScreen() {
   }, [infoModalVisible, playlistId]);
 
   useEffect(() => {
+    setLoading(true);
+    if (isOfflineMode) {
+      const cachedPl = usePlaylistCacheStore.getState().cachedPlaylists.find(p => p.id === playlistId);
+      const offlineSongs = usePlaylistCacheStore.getState().getOfflineSongs(playlistId);
+      const {isDownloaded} = useDownloadStore.getState();
+      setPlaylistName(cachedPl?.name ?? '');
+      setCoverArtId(cachedPl?.coverArt);
+      setSongs(offlineSongs.filter(s => isDownloaded(String(s.id))));
+      setLoading(false);
+      return;
+    }
     getPlaylist(playlistId)
       .then(({playlist, songs: s}) => {
         setPlaylistName(playlist.name);
@@ -697,7 +772,35 @@ export default function PlaylistDetailScreen() {
       })
       .catch(e => console.warn('getPlaylist error', e))
       .finally(() => setLoading(false));
-  }, [playlistId]);
+  }, [playlistId, isOfflineMode]);
+
+  useEffect(() => {
+    if (isOfflineMode) return;
+    if (songs.length === 0 || recoFetchedRef.current) return;
+    recoFetchedRef.current = true;
+
+    const artistNames = [...new Set(songs.map(s => s.artist).filter(Boolean))].slice(0, 3);
+    if (!artistNames.length) return;
+
+    let cancelled = false;
+    setRecoLoading(true);
+
+    (async () => {
+      try {
+        const ids = await Promise.all(artistNames.map(n => getDeezerArtistId(n).catch(() => null)));
+        const rawArrays = await Promise.all(
+          ids.map(id => (id ? getDeezerArtistTopTracks(id, 8).catch(() => []) : Promise.resolve([]))),
+        );
+        const flat = dedupeById(rawArrays.flat()).slice(0, 30);
+        const enriched = await enrichTracksWithAlbumType(flat);
+        const deduped = dedupeByArtistMax3(enriched).slice(0, 10);
+        if (!cancelled) setRecoTracks(deduped);
+      } catch {}
+      finally { if (!cancelled) setRecoLoading(false); }
+    })();
+
+    return () => { cancelled = true; };
+  }, [songs, isOfflineMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePlay = useCallback(async () => {
     if (isThisPlaylistActive) {
@@ -706,13 +809,34 @@ export default function PlaylistDetailScreen() {
     }
     setLoadingPlaylist(true);
     try {
-      await loadAndPlayPlaylist(playlistId, isShuffled);
+      if (isOfflineMode) {
+        const downloadStore = useDownloadStore.getState();
+        const downloadedSongs = songs.filter(s => downloadStore.isDownloaded(String(s.id)));
+        if (downloadedSongs.length === 0) {
+          showToast(getT().playlistDetail.noDownloadedSongs);
+          return;
+        }
+        const tracks: Track[] = downloadedSongs.map((s: any) => ({
+          id: s.id,
+          title: s.title || getT().home.unknownTitle,
+          artist: s.artist || getT().home.unknownArtist,
+          album: s.album || 'Single',
+          duration: s.duration || 0,
+          coverArt: s.coverArt || s.id,
+          streamUrl: downloadStore.getLocalPath(String(s.id)) ?? getStreamUrl(s.id),
+          url: downloadStore.getLocalPath(String(s.id)) ?? getStreamUrl(s.id),
+          artwork: getCoverArtUrl(s.coverArt || s.id, 300),
+        }));
+        await loadAndPlayTracks(tracks, 0, {id: playlistId, name: playlistName});
+      } else {
+        await loadAndPlayPlaylist(playlistId, isShuffled);
+      }
     } catch (e) {
       console.warn('play error', e);
     } finally {
       setLoadingPlaylist(false);
     }
-  }, [isThisPlaylistActive, togglePlay, playlistId, isShuffled]);
+  }, [isOfflineMode, songs, playlistName, isThisPlaylistActive, togglePlay, playlistId, isShuffled]);
 
   // Pair each displayed song with its original index in `songs` so we can:
   // 1. Pass the exact startIndex to RNTP (correct playback position)
@@ -735,6 +859,28 @@ export default function PlaylistDetailScreen() {
     () => songs.reduce((acc, s) => acc + (s.duration ?? 0), 0),
     [songs],
   );
+
+  const offlineSuggestions = useMemo<DownloadedTrack[]>(() => {
+    if (!isOfflineMode) return [];
+    const songIdSet = new Set(songs.map(s => String(s.id)));
+    return Object.values(downloads)
+      .filter(d => !songIdSet.has(d.trackId))
+      .slice(0, 8);
+  }, [isOfflineMode, downloads, songs]);
+
+  const handlePressOfflineTrack = useCallback((track: DownloadedTrack) => {
+    loadAndPlayTracks([{
+      id: track.trackId,
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+      duration: track.duration,
+      coverArt: track.coverArt,
+      streamUrl: track.localPath,
+      url: track.localPath,
+      artwork: track.coverArt ? getCoverArtUrl(track.coverArt, 300) : '',
+    }], 0);
+  }, []);
 
   const handlePlayTrack = useCallback(async (origIdx: number) => {
     if (!songs.length) return;
@@ -771,6 +917,14 @@ export default function PlaylistDetailScreen() {
       .catch(() => {});
   }, [playlistId]);
 
+  const handlePressRec = useCallback((track: DeezerTrack) => {
+    loadAndPlayTracks([deezerTrackToInternalTrack(track)], 0);
+  }, []);
+
+  const handleAddRec = useCallback((_track: DeezerTrack) => {
+    showToast(getT().playlistDetail.recommendations.notOnServer);
+  }, []);
+
   const handleNavigateAlbum = useCallback((albumId: string) => {
     navigation.navigate('AlbumDetail', {albumId});
   }, [navigation]);
@@ -783,6 +937,14 @@ export default function PlaylistDetailScreen() {
     setEditSongs([...songs]);
     setIsEditing(true);
   }, [songs]);
+
+  const autoEditDoneRef = useRef(false);
+  useEffect(() => {
+    if (autoEdit && !autoEditDoneRef.current && songs.length > 0 && !loading) {
+      autoEditDoneRef.current = true;
+      handleStartEdit();
+    }
+  }, [autoEdit, songs, loading, handleStartEdit]);
 
   const handleOpenInfo = useCallback(() => {
     setInfoModalInitialView('info');
@@ -836,14 +998,19 @@ export default function PlaylistDetailScreen() {
     ({item}: {item: {s: SubsonicSong; origIdx: number}}) => (
       <SongRow
         song={item.s}
-        // Highlight by position, not by ID: avoids false positives when playing
-        // from a different context, and handles duplicate songs in the same playlist.
-        isActive={activeQueueIndex === item.origIdx}
+        isActive={
+          isThisPlaylistActive && (
+            shuffleMode !== 'off'
+              ? activeTrackId !== null && activeTrackId === String(item.s.id)
+              : currentQueueIdx !== undefined && currentQueueIdx === item.origIdx
+          )
+        }
         onPress={() => handlePlayTrack(item.origIdx)}
         onMorePress={() => handleSongMore(item.s, item.origIdx)}
+        onDownloadPress={() => useDownloadStore.getState().enqueueTrack(item.s)}
       />
     ),
-    [activeQueueIndex, handlePlayTrack, handleSongMore],
+    [isThisPlaylistActive, activeTrackId, currentQueueIdx, shuffleMode, handlePlayTrack, handleSongMore],
   );
 
   const listHeader = useMemo(
@@ -856,6 +1023,7 @@ export default function PlaylistDetailScreen() {
         songCount={songs.length}
         totalDuration={totalDuration}
         isShuffled={isShuffled}
+        shuffleMode={shuffleMode}
         isThisPlaylistActive={isThisPlaylistActive}
         isGlobalPlaying={isGlobalPlaying}
         loadingPlaylist={loadingPlaylist}
@@ -868,13 +1036,57 @@ export default function PlaylistDetailScreen() {
         onMorePress={() => setPlaylistOptionsVisible(true)}
         onStartEdit={handleStartEdit}
         onOpenInfo={handleOpenInfo}
+        allDownloaded={(() => {
+          const downloadable = songs.filter(s => !String(s.id).startsWith('ext-'));
+          return downloadable.length > 0 && downloadable.every(s => !!downloads[String(s.id)]);
+        })()}
+        onDeleteDownloads={() => {
+          const d = getT();
+          const downloadable = songs.filter(s => !String(s.id).startsWith('ext-') && !!downloads[String(s.id)]);
+          Alert.alert(
+            d.downloads.deletePlaylistTitle,
+            d.downloads.deletePlaylistMessage(playlistName, downloadable.length),
+            [
+              {text: d.downloads.cancelButton, style: 'cancel'},
+              {
+                text: d.downloads.deleteConfirm,
+                style: 'destructive',
+                onPress: () => {
+                  const store = useDownloadStore.getState();
+                  for (const s of downloadable) {
+                    store.deleteDownload(String(s.id));
+                  }
+                },
+              },
+            ],
+          );
+        }}
+        onDownload={() => {
+          const d = getT();
+          Alert.alert(
+            d.library.offlineDownloadTitle,
+            d.library.offlineDownloadMessage(playlistName, songs.length),
+            [
+              {text: d.playlistOptions.cancelButton, style: 'cancel'},
+              {
+                text: d.songOptions.download,
+                onPress: () => {
+                  useDownloadStore.getState().enqueueBatch(songs, () => {
+                    showToast(getT().library.offlineDownloadComplete(playlistName));
+                  });
+                  showToast(d.songOptions.downloadQueued);
+                },
+              },
+            ],
+          );
+        }}
       />
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      topBarH, coverArtId, localCoverUri, playlistName, songs.length, totalDuration,
-      isShuffled, isThisPlaylistActive, isGlobalPlaying, loadingPlaylist,
-      query, handlePlay, handleStartEdit, handleOpenInfo,
+      topBarH, coverArtId, localCoverUri, playlistName, songs, totalDuration,
+      isShuffled, shuffleMode, isThisPlaylistActive, isGlobalPlaying, loadingPlaylist,
+      query, handlePlay, handleStartEdit, handleOpenInfo, isOfflineMode, downloads,
     ],
   );
 
@@ -915,12 +1127,27 @@ export default function PlaylistDetailScreen() {
           <ActivityIndicator size="large" color={darkTheme.accent} />
         </View>
       ) : (
-        <FlatList
+        <FlashList
           data={filteredWithOrigIdx}
           keyExtractor={(item) => `${String(item.s.id)}-${item.origIdx}`}
           renderItem={renderItem}
           ListHeaderComponent={listHeader}
-          ListFooterComponent={<PlaylistFooter />}
+          ListFooterComponent={
+            isOfflineMode ? (
+              <OfflineFooter
+                label={t.playlistDetail.offlineRecoLabel}
+                tracks={offlineSuggestions}
+                onPressTrack={handlePressOfflineTrack}
+              />
+            ) : (
+              <PlaylistFooter
+                recoTracks={recoTracks}
+                recoLoading={recoLoading}
+                onPressRec={handlePressRec}
+                onAddRec={handleAddRec}
+              />
+            )
+          }
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
           onScroll={Animated.event(
@@ -928,6 +1155,7 @@ export default function PlaylistDetailScreen() {
             {useNativeDriver: false},
           )}
           scrollEventThrottle={16}
+          estimatedItemSize={64}
         />
       )}
 
@@ -976,6 +1204,12 @@ export default function PlaylistDetailScreen() {
         onOpenInfo={handleOpenInfo}
         onOpenCover={handleOpenCover}
         onAddAll={() => setAddAllVisible(true)}
+        onDownload={() => {
+          useDownloadStore.getState().enqueueBatch(songs, () => {
+            showToast(getT().library.offlineDownloadComplete(playlistName));
+          });
+          showToast(getT().songOptions.downloadQueued);
+        }}
       />
 
       <AddToPlaylistSheet
@@ -1219,6 +1453,18 @@ const styles = StyleSheet.create({
     backgroundColor: darkTheme.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  recoCoverImg: {
+    width: 44,
+    height: 44,
+    borderRadius: 4,
+    backgroundColor: darkTheme.surfaceAlt,
+  },
+  recoLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 10,
   },
   recoInfo: {
     flex: 1,

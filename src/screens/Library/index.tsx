@@ -4,16 +4,16 @@
  *   liked songs in list or grid view with sort options, pin support, pull-to-refresh,
  *   and auto-recovery on connectivity restore.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license MIT
  */
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
-  FlatList,
   Modal,
   PanResponder,
   RefreshControl,
@@ -24,6 +24,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import {FlashList} from '@shopify/flash-list';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -31,18 +32,24 @@ import Svg, {Circle, Path, Rect} from 'react-native-svg';
 import LinearGradient from 'react-native-linear-gradient';
 import {darkTheme} from '../../theme';
 import CoverArt from '../../components/CoverArt';
-import {getPlaylists} from '../../api/endpoints/playlists';
+import {getPlaylists, getPlaylist} from '../../api/endpoints/playlists';
 import {getStarred} from '../../api/endpoints/library';
 import {usePlayerStore} from '../../store/playerStore';
 import type {SubsonicPlaylist, SubsonicAlbum} from '../../api/types';
 import type {LibraryStackParams} from '../../navigation/types';
 import PlaylistOptionsSheet from '../../components/PlaylistOptionsSheet';
+import PlaylistInfoModal from '../../components/PlaylistInfoModal';
+import AddToPlaylistSheet from '../../components/AddToPlaylistSheet';
 import {showToast} from '../../components/Toast';
 import LogoIcon from '../../components/icons/LogoIcon';
 import {useDrawer} from '../../components/DrawerContainer';
 import HeartIcon from '../../components/icons/HeartIcon';
 import {useT, getT} from '../../i18n';
 import {useNetworkStore} from '../../store/networkStore';
+import {useSettingsStore} from '../../store/settingsStore';
+import {usePlaylistCacheStore} from '../../store/playlistCacheStore';
+import {useDownloadStore} from '../../store/downloadStore';
+import DownloadIcon from '../../components/icons/DownloadIcon';
 
 const {width: SCREEN_W} = Dimensions.get('window');
 
@@ -368,6 +375,9 @@ type RowProps = {
   isPinned: boolean;
   onPress: (id: string) => void;
   onLongPress: (item: LibraryItem) => void;
+  onDownload?: () => void;
+  onDeleteDownloads?: () => void;
+  allDownloaded?: boolean;
 };
 
 function rowSubtitle(item: LibraryItem): string {
@@ -389,6 +399,9 @@ function PlaylistRow({
   isPinned,
   onPress,
   onLongPress,
+  onDownload,
+  onDeleteDownloads,
+  allDownloaded,
 }: RowProps) {
   return (
     <TouchableOpacity
@@ -425,6 +438,20 @@ function PlaylistRow({
         <ActivityIndicator size="small" color={darkTheme.accent} />
       ) : isActive ? (
         <NowPlayingBars />
+      ) : allDownloaded ? (
+        <TouchableOpacity
+          onPress={onDeleteDownloads}
+          hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}
+          activeOpacity={0.7}>
+          <DownloadIcon size={20} color="#1ED760" />
+        </TouchableOpacity>
+      ) : onDownload ? (
+        <TouchableOpacity
+          onPress={onDownload}
+          hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}
+          activeOpacity={0.7}>
+          <DownloadIcon size={20} />
+        </TouchableOpacity>
       ) : null}
     </TouchableOpacity>
   );
@@ -514,6 +541,14 @@ export default function LibraryScreen() {
 
   const [sortSheetVisible, setSortSheetVisible] = useState(false);
   const [optionsItem, setOptionsItem] = useState<LibraryItem | null>(null);
+  const lastOptionsItem = useRef<LibraryItem | null>(null);
+  if (optionsItem) lastOptionsItem.current = optionsItem;
+
+  const [infoModalVisible, setInfoModalVisible] = useState(false);
+  const [infoModalInitialView, setInfoModalInitialView] = useState<'info' | 'cover'>('info');
+  const [infoModalDescription, setInfoModalDescription] = useState('');
+  const [addAllVisible, setAddAllVisible] = useState(false);
+  const [addAllTrackIds, setAddAllTrackIds] = useState<string[]>([]);
 
   const currentPlaylistId = usePlayerStore(s => s.currentPlaylistId);
   const lastPlayedPlaylists = usePlayerStore(s => s.lastPlayedPlaylists);
@@ -533,8 +568,32 @@ export default function LibraryScreen() {
     return count;
   }, [likedSongIds, localLikeOverrides]);
 
+  const isOfflineMode = useSettingsStore(s => s.isOfflineMode);
+  const cachedPlaylistSongs = usePlaylistCacheStore(s => s.cachedPlaylistSongs);
+  const downloads = useDownloadStore(s => s.downloads);
+
   const [refreshing, setRefreshing] = useState(false);
   const fetchItems = useCallback(async () => {
+    if (isOfflineMode) {
+      const {cachedPlaylists, getOfflineSongs} = usePlaylistCacheStore.getState();
+      const {downloads} = useDownloadStore.getState();
+      const cached = cachedPlaylists.filter((p: SubsonicPlaylist) =>
+        getOfflineSongs(p.id).some(s => !!downloads[String(s.id)]),
+      );
+      const plItems: LibraryItem[] = cached.map((p: SubsonicPlaylist) => ({
+        id: p.id,
+        name: p.name,
+        songCount: p.songCount,
+        duration: p.duration,
+        coverArt: p.coverArt,
+        kind: 'playlist' as const,
+      }));
+      setItems(plItems);
+      setError(null);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       const [plData, starData] = await Promise.all([
         getPlaylists(),
@@ -566,7 +625,7 @@ export default function LibraryScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [setLikedSongs]);
+  }, [setLikedSongs, isOfflineMode]);
 
   useEffect(() => {
     fetchItems();
@@ -649,6 +708,101 @@ export default function LibraryScreen() {
     [customOrder.length, allItems],
   );
 
+  const openInfoModal = useCallback((initialView: 'info' | 'cover') => {
+    const item = lastOptionsItem.current;
+    if (!item) return;
+    getPlaylist(item.id)
+      .then(({playlist}) => { setInfoModalDescription(playlist.comment ?? ''); })
+      .catch(() => { setInfoModalDescription(''); })
+      .finally(() => {
+        setInfoModalInitialView(initialView);
+        setInfoModalVisible(true);
+      });
+  }, []);
+
+  const handleOpenInfo = useCallback(() => openInfoModal('info'), [openInfoModal]);
+  const handleOpenCover = useCallback(() => openInfoModal('cover'), [openInfoModal]);
+
+  const handleAddAll = useCallback(async () => {
+    const item = lastOptionsItem.current;
+    if (!item) return;
+    try {
+      const {songs} = await getPlaylist(item.id);
+      setAddAllTrackIds(songs.map(s => String(s.id)));
+      setAddAllVisible(true);
+    } catch {
+      showToast(getT().playlistOptions.queueError);
+    }
+  }, []);
+
+  const handleDownloadPlaylist = useCallback((item: LibraryItem) => {
+    const d = getT();
+    Alert.alert(
+      d.library.offlineDownloadTitle,
+      d.library.offlineDownloadMessage(item.name, item.songCount),
+      [
+        {text: d.playlistOptions.cancelButton, style: 'cancel'},
+        {
+          text: d.songOptions.download,
+          onPress: async () => {
+            try {
+              const {songs} = await getPlaylist(item.id);
+              const playlistName = item.name;
+              useDownloadStore.getState().enqueueBatch(songs, () => {
+                showToast(getT().library.offlineDownloadComplete(playlistName));
+              });
+              showToast(d.songOptions.downloadQueued);
+            } catch {
+              showToast(d.library.loadError);
+            }
+          },
+        },
+      ],
+    );
+  }, []);
+
+  const handleDeletePlaylistDownloads = useCallback((item: LibraryItem) => {
+    const d = getT();
+    const songs = cachedPlaylistSongs[item.id] ?? [];
+    const downloadable = songs.filter(s => !String(s.id).startsWith('ext-') && !!downloads[String(s.id)]);
+    if (downloadable.length === 0) return;
+    Alert.alert(
+      d.downloads.deletePlaylistTitle,
+      d.downloads.deletePlaylistMessage(item.name, downloadable.length),
+      [
+        {text: d.downloads.cancelButton, style: 'cancel'},
+        {
+          text: d.downloads.deleteConfirm,
+          style: 'destructive',
+          onPress: () => {
+            const store = useDownloadStore.getState();
+            for (const s of downloadable) {
+              store.deleteDownload(String(s.id));
+            }
+          },
+        },
+      ],
+    );
+  }, [cachedPlaylistSongs, downloads]);
+
+  const handleStartEditFromLibrary = useCallback(() => {
+    const item = lastOptionsItem.current;
+    if (!item) return;
+    navigation.navigate('PlaylistDetail', {playlistId: item.id, autoEdit: true});
+  }, [navigation]);
+
+  const handleInfoSaved = useCallback((name: string, desc: string) => {
+    const item = lastOptionsItem.current;
+    if (item) setItems(prev => prev.map(i => i.id === item.id ? {...i, name} : i));
+    showToast(getT().playlistInfo.saved);
+  }, []);
+
+  const handleInfoDeleted = useCallback(() => {
+    const item = lastOptionsItem.current;
+    if (item) setItems(prev => prev.filter(i => i.id !== item.id));
+    setInfoModalVisible(false);
+  }, []);
+
   const sortedItems = useMemo<LibraryItem[]>(() => {
     let ordered: LibraryItem[];
     if (sortMode === 'recent') {
@@ -723,12 +877,13 @@ export default function LibraryScreen() {
         )}
 
         {!loading && !error && (
-          <FlatList
+          <FlashList
             key={viewMode}
             data={sortedItems}
             keyExtractor={item => item.id}
             numColumns={viewMode === 'grid' ? 3 : 1}
             showsVerticalScrollIndicator={false}
+            estimatedItemSize={viewMode === 'list' ? 83 : 160}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -766,7 +921,9 @@ export default function LibraryScreen() {
             }
             ListEmptyComponent={
               <View style={styles.center}>
-                <Text style={styles.emptyText}>{t.library.emptyState}</Text>
+                <Text style={styles.emptyText}>
+                  {isOfflineMode ? t.library.offlineEmptyState : t.library.emptyState}
+                </Text>
               </View>
             }
             renderItem={({item}) =>
@@ -787,6 +944,13 @@ export default function LibraryScreen() {
                   isPinned={pinnedIds.has(item.id)}
                   onPress={handlePress}
                   onLongPress={handleLongPress}
+                  onDownload={!isOfflineMode && item.kind === 'playlist' ? () => handleDownloadPlaylist(item) : undefined}
+                  onDeleteDownloads={item.kind === 'playlist' ? () => handleDeletePlaylistDownloads(item) : undefined}
+                  allDownloaded={item.kind === 'playlist' && (() => {
+                    const songs = cachedPlaylistSongs[item.id] ?? [];
+                    const downloadable = songs.filter(s => !String(s.id).startsWith('ext-'));
+                    return downloadable.length > 0 && downloadable.every(s => !!downloads[String(s.id)]);
+                  })()}
                 />
               )
             }
@@ -818,6 +982,28 @@ export default function LibraryScreen() {
             setOptionsItem(null);
           }
         }}
+        onStartEdit={handleStartEditFromLibrary}
+        onOpenInfo={handleOpenInfo}
+        onOpenCover={handleOpenCover}
+        onAddAll={handleAddAll}
+        onDownload={() => { if (lastOptionsItem.current) handleDownloadPlaylist(lastOptionsItem.current); }}
+      />
+      <PlaylistInfoModal
+        visible={infoModalVisible}
+        onClose={() => setInfoModalVisible(false)}
+        playlistId={lastOptionsItem.current?.id ?? ''}
+        initialName={lastOptionsItem.current?.name ?? ''}
+        initialDescription={infoModalDescription}
+        coverArtId={lastOptionsItem.current?.coverArt}
+        onSaved={handleInfoSaved}
+        onDeleted={handleInfoDeleted}
+        initialView={infoModalInitialView}
+      />
+      <AddToPlaylistSheet
+        visible={addAllVisible}
+        onClose={() => setAddAllVisible(false)}
+        trackIds={addAllTrackIds}
+        onToast={showToast}
       />
     </View>
   );
@@ -835,7 +1021,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    height: 56,
+    height: 48,
     backgroundColor: darkTheme.background,
     zIndex: 20,
   },
@@ -868,7 +1054,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 40,
+    height: 20,
     zIndex: 10,
   },
   content: {

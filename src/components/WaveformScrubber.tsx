@@ -4,7 +4,7 @@
  *   Renders 45 SVG bars with overflow-hidden masking to show playback progress
  *   without a position-update loop.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React, {useMemo, useState} from 'react';

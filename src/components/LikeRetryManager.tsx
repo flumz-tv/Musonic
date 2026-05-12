@@ -4,15 +4,15 @@
  *   when the track changes. Keeps optimistic UI consistent after transient errors
  *   without blocking playback.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useEffect} from 'react';
 import {useActiveTrack, usePlaybackState, State} from 'react-native-track-player';
 import {usePlayerStore} from '../store/playerStore';
 import {star, unstar} from '../api/endpoints/library';
 import {SubsonicError} from '../api/client';
-import Toast from './Toast';
+import {showToast} from './Toast';
 import {useT} from '../i18n';
 
 export default function LikeRetryManager() {
@@ -26,18 +26,6 @@ export default function LikeRetryManager() {
   const pendingLikeToast = usePlayerStore(s => s.pendingLikeToast);
   const setPendingLikeToast = usePlayerStore(s => s.setPendingLikeToast);
 
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showToast = useCallback((msg: string) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToastMessage(msg);
-    setToastVisible(true);
-    toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
-  }, []);
-
-  // Show immediate toasts for permanent errors (set by toggleLike in playerStore)
   useEffect(() => {
     if (!pendingLikeToast) return;
     showToast(pendingLikeToast);
@@ -66,5 +54,5 @@ export default function LikeRetryManager() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, currentTrack?.id, pendingLikeRetries]);
 
-  return <Toast visible={toastVisible} message={toastMessage} />;
+  return null;
 }

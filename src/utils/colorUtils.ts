@@ -3,7 +3,7 @@
  * @description Pure colour utility functions: hex blending and deterministic
  *   ID-to-colour mapping used as fallback backgrounds before artwork loads.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 export function blendWithBlack(hex: string, factor = 0.5): string {

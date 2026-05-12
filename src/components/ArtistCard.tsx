@@ -3,7 +3,7 @@
  * @description Circular artist card for horizontal scroll lists (Home Discover
  *   section). Shows artist photo or initials fallback.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React from 'react';

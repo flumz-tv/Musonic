@@ -3,32 +3,48 @@
  * @description Bottom sheet showing the current playback queue. Supports
  *   drag-and-drop reordering, individual removal, and move-to-top actions.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   LayoutAnimation,
-  PanResponder,
   StyleSheet,
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import ReAnimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  cancelAnimation,
+  runOnJS,
+} from 'react-native-reanimated';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import DraggableFlatList, {
   RenderItemParams,
   ScaleDecorator,
 } from 'react-native-draggable-flatlist';
-import {GestureHandlerRootView} from 'react-native-gesture-handler';
+import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import Svg, {Circle, Path, Rect} from 'react-native-svg';
 import CoverArt from './CoverArt';
+import PlayIcon from './icons/PlayIcon';
+import PauseIcon from './icons/PauseIcon';
+import RepeatIcon from './icons/RepeatIcon';
+import CloseIcon from './icons/CloseIcon';
+import ShuffleIcon from './icons/ShuffleIcon';
+import TrackMagicIcon from './icons/TrackMagicIcon';
 import {useT} from '../i18n';
 import {useActiveTrack, usePlaybackState, State} from 'react-native-track-player';
-import {usePlayerStore, type Track} from '../store/playerStore';
+import {usePlayerStore, type Track, type ShuffleMode} from '../store/playerStore';
+import {useSettingsStore} from '../store/settingsStore';
 
 const {width: SW, height: SH} = Dimensions.get('window');
 const ORANGE = '#FF6B35';
@@ -39,43 +55,40 @@ const BOTTOM_BTN_W = Math.floor((SW - 40 - 16) / 3);
 // ─── Animated Equalizer ───────────────────────────────────────────────────────
 
 function Equalizer({playing}: {playing: boolean}) {
-  const b1 = useRef(new Animated.Value(3)).current;
-  const b2 = useRef(new Animated.Value(3)).current;
-  const b3 = useRef(new Animated.Value(3)).current;
+  const b1 = useSharedValue(3);
+  const b2 = useSharedValue(3);
+  const b3 = useSharedValue(3);
+
+  const s1 = useAnimatedStyle(() => ({height: b1.value}));
+  const s2 = useAnimatedStyle(() => ({height: b2.value}));
+  const s3 = useAnimatedStyle(() => ({height: b3.value}));
 
   useEffect(() => {
     const bars = [b1, b2, b3];
     if (playing) {
-      bars.forEach((bar, i) =>
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(bar, {
-              toValue: 14,
-              duration: 320 + i * 80,
-              useNativeDriver: false,
-            }),
-            Animated.timing(bar, {
-              toValue: 3,
-              duration: 300 + i * 60,
-              useNativeDriver: false,
-            }),
-          ]),
-        ).start(),
-      );
+      bars.forEach((bar, i) => {
+        bar.value = withRepeat(
+          withSequence(
+            withTiming(14, {duration: 320 + i * 80}),
+            withTiming(3, {duration: 300 + i * 60}),
+          ),
+          -1,
+        );
+      });
     } else {
       bars.forEach(bar => {
-        bar.stopAnimation();
-        bar.setValue(3);
+        cancelAnimation(bar);
+        bar.value = withTiming(3, {duration: 150});
       });
     }
-    return () => bars.forEach(bar => bar.stopAnimation());
+    return () => bars.forEach(bar => cancelAnimation(bar));
   }, [playing, b1, b2, b3]);
 
   return (
     <View style={styles.eqContainer}>
-      {[b1, b2, b3].map((bar, i) => (
-        <Animated.View key={i} style={[styles.eqBar, {height: bar}]} />
-      ))}
+      <ReAnimated.View style={[styles.eqBar, s1]} />
+      <ReAnimated.View style={[styles.eqBar, s2]} />
+      <ReAnimated.View style={[styles.eqBar, s3]} />
     </View>
   );
 }
@@ -111,53 +124,6 @@ function CheckCircle({selected}: {selected: boolean}) {
   );
 }
 
-function SmallPlayIcon() {
-  return (
-    <Svg width={13} height={13} viewBox="0 0 24 24" fill="#000">
-      <Path d="M7 4 L20 12 L7 20 Z" />
-    </Svg>
-  );
-}
-
-function SmallPauseIcon() {
-  return (
-    <Svg width={13} height={13} viewBox="0 0 24 24" fill="#000">
-      <Rect x={5} y={4} width={4} height={16} rx={1.5} />
-      <Rect x={15} y={4} width={4} height={16} rx={1.5} />
-    </Svg>
-  );
-}
-
-function ShuffleMiniIcon({color = '#fff'}: {color?: string}) {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24">
-      <Path
-        d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </Svg>
-  );
-}
-
-function RepeatMiniIcon({color = '#fff'}: {color?: string}) {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24">
-      <Path
-        d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </Svg>
-  );
-}
-
 function TimerIcon() {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24">
@@ -175,19 +141,6 @@ function TimerIcon() {
   );
 }
 
-function CloseIcon() {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24">
-      <Path
-        d="M18 6 L6 18 M6 6 L18 18"
-        stroke="#fff"
-        strokeWidth={2.5}
-        strokeLinecap="round"
-      />
-    </Svg>
-  );
-}
-
 // ─── Queue Row ────────────────────────────────────────────────────────────────
 
 interface QueueRowProps {
@@ -199,7 +152,10 @@ interface QueueRowProps {
   onSelect: (id: string) => void;
 }
 
-function QueueRow({item, drag, isActive, isEditMode, isSelected, onSelect}: QueueRowProps) {
+const QueueRow = React.memo(function QueueRow({item, drag, isActive, isEditMode, isSelected, onSelect}: QueueRowProps) {
+  const dragRef = useRef(drag);
+  dragRef.current = drag;
+
   return (
     <ScaleDecorator>
       <TouchableOpacity
@@ -216,12 +172,15 @@ function QueueRow({item, drag, isActive, isEditMode, isSelected, onSelect}: Queu
           <Text style={styles.queueRowTitle} numberOfLines={1}>
             {item.title}
           </Text>
-          <Text style={styles.queueRowArtist} numberOfLines={1}>
-            {item.artist}
-          </Text>
+          <View style={styles.queueRowArtistRow}>
+            {item.isMagic && <TrackMagicIcon size={10} />}
+            <Text style={styles.queueRowArtist} numberOfLines={1}>
+              {item.artist}
+            </Text>
+          </View>
         </View>
         <TouchableOpacity
-          onPressIn={drag}
+          onPressIn={() => dragRef.current()}
           hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}
           style={styles.dragHandle}>
           <DragHandleIcon />
@@ -229,7 +188,13 @@ function QueueRow({item, drag, isActive, isEditMode, isSelected, onSelect}: Queu
       </TouchableOpacity>
     </ScaleDecorator>
   );
-}
+}, (prev, next) =>
+  prev.item === next.item &&
+  prev.isActive === next.isActive &&
+  prev.isEditMode === next.isEditMode &&
+  prev.isSelected === next.isSelected &&
+  prev.onSelect === next.onSelect,
+);
 
 // ─── QueueSheet ───────────────────────────────────────────────────────────────
 
@@ -247,33 +212,34 @@ export default function QueueSheet({visible, onClose, slideY}: Props) {
   const upcoming = usePlayerStore(s => s.upcoming);
   const currentPlaylistName = usePlayerStore(s => s.currentPlaylistName);
   const isShuffled = usePlayerStore(s => s.isShuffled);
+  const shuffleMode = usePlayerStore(s => s.shuffleMode);
   const repeatMode = usePlayerStore(s => s.repeatMode);
   const togglePlay = usePlayerStore(s => s.togglePlay);
   const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
+  const isOfflineMode = useSettingsStore(s => s.isOfflineMode);
+  const setShuffleMode = usePlayerStore(s => s.setShuffleMode);
+  const isFetchingMagic = usePlayerStore(s => s.isFetchingMagic);
   const cycleRepeat = usePlayerStore(s => s.cycleRepeat);
   const reorderQueue = usePlayerStore(s => s.reorderQueue);
   const removeFromQueue = usePlayerStore(s => s.removeFromQueue);
   const moveToTop = usePlayerStore(s => s.moveToTop);
 
   const [isEditMode, setIsEditMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const headerPan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 10,
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dy > 50 || gs.vy > 0.5) {
-          onClose();
-        }
-      },
-    }),
-  ).current;
+  const headerGesture = Gesture.Pan()
+    .minDistance(10)
+    .onEnd(e => {
+      'worklet';
+      if (e.translationY > 50 || e.velocityY > 500) {
+        runOnJS(onClose)();
+      }
+    });
 
   const exitEditMode = useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setIsEditMode(false);
-    setSelectedIds([]);
+    setSelectedIds(new Set());
   }, []);
 
   const enterEditMode = useCallback(() => {
@@ -282,20 +248,23 @@ export default function QueueSheet({visible, onClose, slideY}: Props) {
   }, []);
 
   const toggleSelect = useCallback((id: string) => {
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id],
-    );
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }, []);
 
   const handleMoveToTop = useCallback(() => {
-    if (selectedIds.length === 0) return;
-    moveToTop(selectedIds);
+    if (selectedIds.size === 0) return;
+    moveToTop([...selectedIds]);
     exitEditMode();
   }, [selectedIds, moveToTop, exitEditMode]);
 
   const handleRemove = useCallback(() => {
-    if (selectedIds.length === 0) return;
-    removeFromQueue(selectedIds);
+    if (selectedIds.size === 0) return;
+    removeFromQueue([...selectedIds]);
     exitEditMode();
   }, [selectedIds, removeFromQueue, exitEditMode]);
 
@@ -310,7 +279,7 @@ export default function QueueSheet({visible, onClose, slideY}: Props) {
         drag={drag}
         isActive={isActive}
         isEditMode={isEditMode}
-        isSelected={selectedIds.includes(item.id)}
+        isSelected={selectedIds.has(item.id)}
         onSelect={toggleSelect}
       />
     ),
@@ -319,7 +288,7 @@ export default function QueueSheet({visible, onClose, slideY}: Props) {
 
   if (!visible || !currentTrack) return null;
 
-  const hasSelection = selectedIds.length > 0;
+  const hasSelection = selectedIds.size > 0;
   const repeatActive = repeatMode !== 'none';
 
   return (
@@ -332,14 +301,15 @@ export default function QueueSheet({visible, onClose, slideY}: Props) {
         <SafeAreaView style={styles.sheetInner} edges={['bottom']}>
 
           {/* ── Top zone with swipe-to-close ── */}
-          <View {...headerPan.panHandlers}>
+          <GestureDetector gesture={headerGesture}>
+          <View>
             <View style={styles.pill} />
 
             <View style={styles.header}>
               {isEditMode ? (
                 <>
                   <Text style={styles.headerTitle} numberOfLines={1}>
-                    {t.queue.editTitle(selectedIds.length)}
+                    {t.queue.editTitle(selectedIds.size)}
                   </Text>
                   <TouchableOpacity
                     onPress={exitEditMode}
@@ -372,12 +342,13 @@ export default function QueueSheet({visible, onClose, slideY}: Props) {
                 </Text>
               </View>
               <TouchableOpacity style={styles.playBtn} onPress={togglePlay}>
-                {isPlaying ? <SmallPauseIcon /> : <SmallPlayIcon />}
+                {isPlaying ? <PauseIcon size={13} color="#000" /> : <PlayIcon size={13} />}
               </TouchableOpacity>
             </View>
 
             <View style={styles.divider} />
           </View>
+          </GestureDetector>
 
           {/* ── Draggable list ── */}
           <GestureHandlerRootView style={styles.fill}>
@@ -408,10 +379,16 @@ export default function QueueSheet({visible, onClose, slideY}: Props) {
           ) : (
             <View style={styles.bottomBar}>
               <TouchableOpacity
-                style={styles.bottomBtn}
-                onPress={toggleShuffle}
+                style={[styles.bottomBtn, isFetchingMagic && {opacity: 0.5}]}
+                onPress={() => {
+                  if (isOfflineMode && shuffleMode === 'on') { setShuffleMode('off'); return; }
+                  toggleShuffle();
+                }}
+                disabled={isFetchingMagic}
                 activeOpacity={0.7}>
-                <ShuffleMiniIcon color={isShuffled ? ORANGE : '#fff'} />
+                {isFetchingMagic
+                  ? <ActivityIndicator size="small" color={ORANGE} />
+                  : <ShuffleIcon size={22} mode={shuffleMode as ShuffleMode} color={isShuffled ? ORANGE : '#fff'} />}
                 <Text style={[styles.bottomBtnLabel, isShuffled && styles.bottomBtnLabelActive]}>
                   {t.queue.shuffle}
                 </Text>
@@ -421,7 +398,7 @@ export default function QueueSheet({visible, onClose, slideY}: Props) {
                 style={styles.bottomBtn}
                 onPress={cycleRepeat}
                 activeOpacity={0.7}>
-                <RepeatMiniIcon color={repeatActive ? ORANGE : '#fff'} />
+                <RepeatIcon color={repeatActive ? ORANGE : '#fff'} />
                 <Text style={[styles.bottomBtnLabel, repeatActive && styles.bottomBtnLabelActive]}>
                   {t.queue.repeat}
                 </Text>
@@ -564,10 +541,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
   },
+  queueRowArtistRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
   queueRowArtist: {
     fontSize: 14,
     color: '#A7A7A7',
-    marginTop: 2,
+    flex: 1,
   },
   dragHandle: {
     padding: 6,

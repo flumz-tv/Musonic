@@ -4,7 +4,7 @@
  *   Each tab hosts its own stack so deep-link screens (AlbumDetail, ArtistDetail)
  *   are reachable from any tab without cross-stack navigation.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React from 'react';
@@ -21,7 +21,6 @@ import LibraryIcon from '../components/icons/LibraryIcon';
 import MiniPlayer from '../components/MiniPlayer';
 import FullScreenPlayer from '../components/FullScreenPlayer';
 import AudioPlayer from '../components/AudioPlayer';
-import OfflineBanner from '../components/OfflineBanner';
 import ConnectivityMonitor from '../components/ConnectivityMonitor';
 import {GlobalToast} from '../components/Toast';
 import {useImageColor} from '../hooks/useImageColor';
@@ -116,7 +115,6 @@ export default function TabNavigator() {
       <AudioPlayer />
       <MiniPlayer />
       <FullScreenPlayer />
-      <OfflineBanner />
       <GlobalToast />
     </View>
   );
@@ -129,7 +127,7 @@ const styles = StyleSheet.create({
     bottom: TAB_H,
     left: 0,
     right: 0,
-    height: 90,
+    height: 56,
     zIndex: 6,
   },
 });

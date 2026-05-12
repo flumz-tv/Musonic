@@ -3,7 +3,7 @@
  * @description TypeScript type definitions for all Subsonic API response objects
  *   used across the app (artists, albums, songs, playlists, search results).
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 export type SubsonicArtist = {

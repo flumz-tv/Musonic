@@ -3,7 +3,7 @@
  * @description Section title row with an optional "See all" action link.
  *   Used in horizontal scroll sections on the Home screen.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React from 'react';

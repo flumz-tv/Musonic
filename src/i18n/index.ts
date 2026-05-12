@@ -4,7 +4,7 @@
  *   (imperative, for use outside components) to return the current locale object.
  *   Language selection is driven by settingsStore.language.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import {t as fr} from './fr';

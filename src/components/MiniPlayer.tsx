@@ -3,12 +3,16 @@
  * @description Sticky mini player bar shown at the bottom of main screens.
  *   Supports swipe-left/right to skip tracks and tap to open the full-screen player.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React, {useCallback, useRef, useState} from 'react';
-import {Animated, Easing, PanResponder, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
-import Svg, {Circle, Path, Rect} from 'react-native-svg';
+import {Animated, Easing, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {Gesture, GestureDetector} from 'react-native-gesture-handler';
+import {runOnJS} from 'react-native-reanimated';
+import Svg, {Circle, Path} from 'react-native-svg';
+import PlayIcon from './icons/PlayIcon';
+import PauseIcon from './icons/PauseIcon';
 import {useActiveTrack, usePlaybackState, useProgress, State} from 'react-native-track-player';
 import CoverArt from './CoverArt';
 import HeartIcon from './icons/HeartIcon';
@@ -16,29 +20,13 @@ import AddToPlaylistSheet from './AddToPlaylistSheet';
 import {showToast} from './Toast';
 import TextTicker from 'react-native-text-ticker';
 import {usePlayerStore} from '../store/playerStore';
+import {usePlaylistCacheStore} from '../store/playlistCacheStore';
 import {skipNext, skipPrevForce} from '../services/playerActions';
 import {blendWithBlack} from '../utils/colorUtils';
 import {darkTheme} from '../theme';
 import {useT} from '../i18n';
 
 const TAB_BAR_HEIGHT = 60;
-
-function PlayIcon() {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24">
-      <Path d="M6 4 L20 12 L6 20 Z" fill="#fff" />
-    </Svg>
-  );
-}
-
-function PauseIcon() {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24">
-      <Rect x={5} y={4} width={4} height={16} rx={1.5} fill="#fff" />
-      <Rect x={15} y={4} width={4} height={16} rx={1.5} fill="#fff" />
-    </Svg>
-  );
-}
 
 function CheckCircleGreen() {
   return (
@@ -89,7 +77,7 @@ export default function MiniPlayer() {
   // UI-only store state
   const likedSongIds = usePlayerStore(s => s.likedSongIds);
   const localLikeOverrides = usePlayerStore(s => s.localLikeOverrides);
-  const playlistSongIds = usePlayerStore(s => s.playlistSongIds);
+  const savedSet = usePlaylistCacheStore(s => s.savedSet);
   const dominantColor = usePlayerStore(s => s.dominantColor);
   const isMiniPlayerVisible = usePlayerStore(s => s.isMiniPlayerVisible);
   const togglePlay = usePlayerStore(s => s.togglePlay);
@@ -98,7 +86,7 @@ export default function MiniPlayer() {
 
   const trackId = currentTrack?.id ? String(currentTrack.id) : '';
   const isLiked = trackId ? (localLikeOverrides[trackId] ?? likedSongIds.has(trackId)) : false;
-  const inPlaylist = trackId ? playlistSongIds.has(trackId) : false;
+  const inPlaylist = trackId ? savedSet.has(trackId) : false;
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const coverSlide = useRef(new Animated.Value(0)).current;
@@ -135,16 +123,16 @@ export default function MiniPlayer() {
     });
   };
 
-  const swipePan = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gs) =>
-        Math.abs(gs.dx) > 10 && Math.abs(gs.dx) > Math.abs(gs.dy) * 2,
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dx < -50 || gs.vx < -0.4) handleMiniSwipe('next');
-        else if (gs.dx > 50 || gs.vx > 0.4) handleMiniSwipe('prev');
-      },
-    }),
-  ).current;
+  const swipeGesture = Gesture.Pan()
+    .activeOffsetX([-10, 10])
+    .onEnd(e => {
+      'worklet';
+      if (e.translationX < -50 || e.velocityX < -400) {
+        runOnJS(handleMiniSwipe)('next');
+      } else if (e.translationX > 50 || e.velocityX > 400) {
+        runOnJS(handleMiniSwipe)('prev');
+      }
+    });
 
   if (!isMiniPlayerVisible || !currentTrack?.id) return null;
 
@@ -154,12 +142,12 @@ export default function MiniPlayer() {
 
   return (
     <>
+      <GestureDetector gesture={swipeGesture}>
       <View
         style={[
           styles.container,
           {bottom: TAB_BAR_HEIGHT + 8, backgroundColor: bgColor},
-        ]}
-        {...swipePan.panHandlers}>
+        ]}>
         <View style={styles.progressTrack}>
           <View
             style={[
@@ -214,11 +202,12 @@ export default function MiniPlayer() {
             <TouchableOpacity
               onPress={togglePlay}
               hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
-              {isPlaying ? <PauseIcon /> : <PlayIcon />}
+              {isPlaying ? <PauseIcon /> : <PlayIcon color="#fff" />}
             </TouchableOpacity>
           </View>
         </View>
       </View>
+      </GestureDetector>
 
       <AddToPlaylistSheet
         visible={sheetOpen}

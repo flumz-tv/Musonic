@@ -11,6 +11,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   FlatList,
@@ -41,6 +42,7 @@ import {loadAndPlayAlbum, loadAndPlayTracks, syncUpcomingFromRNTP} from '../../s
 import {usePlayerStore} from '../../store/playerStore';
 import {usePlaylistCacheStore} from '../../store/playlistCacheStore';
 import {colorFromId} from '../../utils/colorUtils';
+import ImageColors from 'react-native-image-colors';
 import type {SubsonicSong} from '../../api/types';
 import type {LibraryStackParams} from '../../navigation/types';
 import type {Track} from '../../store/playerStore';
@@ -48,31 +50,25 @@ import {subsonicGet, getCoverArtUrl, getStreamUrl} from '../../api/client';
 import {getArtistImage} from '../../api/deezer';
 import {useT, getT} from '../../i18n';
 import BackArrowIcon from '../../components/icons/BackArrowIcon';
+import PlayIcon from '../../components/icons/PlayIcon';
+import DotsHorizontalIcon from '../../components/icons/DotsHorizontalIcon';
+import DotsVerticalIcon from '../../components/icons/DotsVerticalIcon';
+import DownloadIcon from '../../components/icons/DownloadIcon';
+import DownloadStatusIcon from '../../components/icons/DownloadStatusIcon';
+import PlusCircleIconComponent from '../../components/icons/PlusCircleIcon';
+import {useDownloadStore} from '../../store/downloadStore';
 
 const {width: SCREEN_W, height: SCREEN_H} = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_W - 80, 260);
 const TOP_BAR_H = 52;
 
 // ─── Color Extraction ────────────────────────────────────────────────────────
-function dominantColorFromBuffer(bytes: Uint8Array): string {
-  const len = bytes.length;
-  if (len < 100) return '#3D1F0F';
-  const samples: [number, number, number][] = [];
-  const step = Math.max(3, Math.floor(len / 80));
-  for (let i = 128; i < len - 2; i += step) {
-    const r = bytes[i]; const g = bytes[i + 1]; const b = bytes[i + 2];
-    if (r > 240 && g > 240 && b > 240) continue;
-    if (r < 10 && g < 10 && b < 10) continue;
-    if (r === 255 && g === 0 && b === 0) continue;
-    samples.push([r, g, b]);
-  }
-  if (samples.length === 0) return '#3D1F0F';
-  samples.sort((a, b) => Math.max(...b) - Math.min(...b) - (Math.max(...a) - Math.min(...a)));
-  const top = samples.slice(0, Math.max(1, Math.floor(samples.length * 0.25)));
-  const avg = top.reduce((acc, [r, g, b]) => [acc[0] + r, acc[1] + g, acc[2] + b], [0, 0, 0]).map(v => Math.round(v / top.length));
-  const darken = (v: number) => Math.round(v * 0.55);
-  const toHex = (v: number) => darken(v).toString(16).padStart(2, '0');
-  return `#${toHex(avg[0])}${toHex(avg[1])}${toHex(avg[2])}`;
+function darkenHex(hex: string): string {
+  const c = hex.replace('#', '');
+  if (c.length !== 6) return '#3D1F0F';
+  const darken = (v: number) => Math.round(parseInt(c.slice(v, v + 2), 16) * 0.55)
+    .toString(16).padStart(2, '0');
+  return `#${darken(0)}${darken(2)}${darken(4)}`;
 }
 
 function useAlbumColor(coverArtId?: string): string {
@@ -80,35 +76,28 @@ function useAlbumColor(coverArtId?: string): string {
   useEffect(() => {
     if (!coverArtId) return;
     let cancelled = false;
-    try {
-      const url = getCoverArtUrl(coverArtId, 200);
-      fetch(url).then(r => r.arrayBuffer()).then(buf => {
-        if (!cancelled) setColor(dominantColorFromBuffer(new Uint8Array(buf)));
-      }).catch(() => {});
-    } catch {}
+    let url: string;
+    try { url = getCoverArtUrl(coverArtId, 200); } catch { return; }
+    ImageColors.getColors(url, {fallback: colorFromId(coverArtId), cache: true})
+      .then(result => {
+        if (cancelled) return;
+        let raw = colorFromId(coverArtId);
+        if (result.platform === 'android') {
+          raw = (result as any).dominant ?? (result as any).vibrant ?? (result as any).average ?? raw;
+        } else if (result.platform === 'ios') {
+          raw = (result as any).background ?? (result as any).primary ?? raw;
+        }
+        setColor(darkenHex(raw));
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [coverArtId]);
   return color;
 }
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
-function DownloadIcon({size = 22, color = '#fff'}: {size?: number; color?: string}) {
-  return (<Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx={12} cy={12} r={9} stroke={color} strokeWidth={1.8} fill="none" /><Path d="M12 7 V14 M9 12 L12 15 L15 12" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" fill="none" /></Svg>);
-}
-function MoreDotsIcon({size = 22, color = '#fff'}: {size?: number; color?: string}) {
-  return (<Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx={5} cy={12} r={1.8} fill={color} /><Circle cx={12} cy={12} r={1.8} fill={color} /><Circle cx={19} cy={12} r={1.8} fill={color} /></Svg>);
-}
-function PlayIcon({size = 22, color = '#000'}: {size?: number; color?: string}) {
-  return (<Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M7 4 L21 12 L7 20 Z" fill={color} /></Svg>);
-}
-function PlusCircleIcon({size = 24, color = '#fff'}: {size?: number; color?: string}) {
-  return (<Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx={12} cy={12} r={9.5} stroke={color} strokeWidth={1.6} fill="none" /><Path d="M12 8 V16 M8 12 H16" stroke={color} strokeWidth={1.8} strokeLinecap="round" /></Svg>);
-}
 function CheckCircleGreen({size = 24}: {size?: number}) {
   return (<Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx={12} cy={12} r={9.5} stroke="#1ED760" strokeWidth={1.6} fill="rgba(30,215,96,0.12)" /><Path d="M7.5 12 L10.5 15 L16.5 9" stroke="#1ED760" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" /></Svg>);
-}
-function ThreeDotsVertIcon({size = 18, color = '#888'}: {size?: number; color?: string}) {
-  return (<Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx={12} cy={5} r={1.8} fill={color} /><Circle cx={12} cy={12} r={1.8} fill={color} /><Circle cx={12} cy={19} r={1.8} fill={color} /></Svg>);
 }
 
 // ─── Song Row ─────────────────────────────────────────────────────────────────
@@ -119,9 +108,10 @@ type SongRowProps = {
   onPress: () => void;
   onMore: () => void;
   onAddToPlaylist: () => void;
+  onDownloadPress: () => void;
 };
 
-function SongRow({song, isActive, index, onPress, onMore, onAddToPlaylist}: SongRowProps) {
+function SongRow({song, isActive, index, onPress, onMore, onAddToPlaylist, onDownloadPress}: SongRowProps) {
   const likedSongIds = usePlayerStore(s => s.likedSongIds);
   const localLikeOverrides = usePlayerStore(s => s.localLikeOverrides);
   const toggleLike = usePlayerStore(s => s.toggleLike);
@@ -129,6 +119,27 @@ function SongRow({song, isActive, index, onPress, onMore, onAddToPlaylist}: Song
   const id = String(song.id);
   const isLiked = localLikeOverrides[id] !== undefined ? localLikeOverrides[id] : likedSongIds.has(id);
   const isInPlaylist = savedSet.has(id);
+  const isDownloaded = useDownloadStore(s => id in s.downloads);
+
+  const handleDownloadPress = () => {
+    if (isDownloaded) {
+      const d = getT();
+      Alert.alert(
+        d.downloads.deleteSongTitle,
+        d.downloads.deleteSongMessage(song.title),
+        [
+          {text: d.downloads.cancelButton, style: 'cancel'},
+          {
+            text: d.downloads.deleteConfirm,
+            style: 'destructive',
+            onPress: () => useDownloadStore.getState().deleteDownload(id),
+          },
+        ],
+      );
+    } else {
+      onDownloadPress();
+    }
+  };
 
   return (
     <TouchableOpacity style={styles.songRow} activeOpacity={0.7} onPress={onPress} onLongPress={onMore} delayLongPress={400}>
@@ -154,13 +165,18 @@ function SongRow({song, isActive, index, onPress, onMore, onAddToPlaylist}: Song
           onPress={onAddToPlaylist}>
           {isInPlaylist
             ? <CheckCircleGreen size={20} />
-            : <PlusCircleIcon size={20} color="#444" />}
+            : <PlusCircleIconComponent size={20} color="#444" />}
+        </TouchableOpacity>
+        <TouchableOpacity
+          hitSlop={{top: 10, bottom: 10, left: 6, right: 6}}
+          onPress={handleDownloadPress}>
+          <DownloadStatusIcon trackId={id} size={20} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.songDots}
-          hitSlop={{top: 8, bottom: 8, left: 6, right: 8}}
+          hitSlop={{top: 8, bottom: 8, left: 4, right: 8}}
           onPress={onMore}>
-          <ThreeDotsVertIcon />
+          <DotsVerticalIcon />
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -170,8 +186,8 @@ function SongRow({song, isActive, index, onPress, onMore, onAddToPlaylist}: Song
 // ─── List Header ──────────────────────────────────────────────────────────────
 function AlbumHeader({
   topBarH, coverArtId, albumName, artistName, artistImageUrl, year,
-  isShuffled, isStarred, loadingAlbum, coverScale, coverTranslateY,
-  onPlay, onShuffle, onToggleStar, onArtistPress, onMorePress,
+  isShuffled, shuffleMode, isStarred, loadingAlbum, coverScale, coverTranslateY,
+  onPlay, onShuffle, onToggleStar, onArtistPress, onMorePress, onDownload,
 }: any) {
   const t = useT();
   const [imageError, setImageError] = useState(false);
@@ -208,18 +224,18 @@ function AlbumHeader({
       <View style={styles.actionsRow}>
         <View style={styles.actionsLeft}>
           <TouchableOpacity style={styles.actionBtn} onPress={onToggleStar} activeOpacity={0.7}>
-            {isStarred ? <CheckCircleGreen size={26} /> : <PlusCircleIcon size={26} />}
+            {isStarred ? <CheckCircleGreen size={26} /> : <PlusCircleIconComponent size={26} />}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={onDownload}>
             <DownloadIcon size={22} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionBtn} onPress={onMorePress} activeOpacity={0.7}>
-            <MoreDotsIcon size={22} />
+            <DotsHorizontalIcon size={22} />
           </TouchableOpacity>
         </View>
         <View style={styles.actionsRight}>
           <TouchableOpacity style={styles.actionBtn} onPress={onShuffle} activeOpacity={0.7}>
-            <ShuffleIcon size={24} active={isShuffled} />
+            <ShuffleIcon size={24} mode={shuffleMode} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.playBtn} onPress={onPlay} activeOpacity={0.85}>
             {loadingAlbum
@@ -261,6 +277,7 @@ export default function AlbumDetailScreen() {
   const activeTrack = useActiveTrack();
   const currentTrackId = activeTrack?.id ? String(activeTrack.id) : null;
   const isShuffled = usePlayerStore(s => s.isShuffled);
+  const shuffleMode = usePlayerStore(s => s.shuffleMode);
   const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
 
   const dominantColor = useAlbumColor(coverArtId);
@@ -377,6 +394,7 @@ export default function AlbumDetailScreen() {
       onPress={() => handlePlayTrack(index)}
       onMore={() => handleSongMore(item)}
       onAddToPlaylist={() => { setAddToPlaylistSong(item); setAddToPlaylistVisible(true); }}
+      onDownloadPress={() => useDownloadStore.getState().enqueueTrack(item)}
     />
   ), [currentTrackId, handlePlayTrack, handleSongMore]);
 
@@ -386,12 +404,16 @@ export default function AlbumDetailScreen() {
     <AlbumHeader
       topBarH={topBarH} coverArtId={coverArtId} albumName={albumName} artistName={artistName}
       artistImageUrl={artistImageUrl} year={year}
-      isShuffled={isShuffled} isStarred={isStarred} loadingAlbum={loadingAlbum}
+      isShuffled={isShuffled} shuffleMode={shuffleMode} isStarred={isStarred} loadingAlbum={loadingAlbum}
       coverScale={coverScale} coverTranslateY={coverTranslateY}
       onPlay={handlePlay} onShuffle={toggleShuffle} onToggleStar={handleToggleStar}
       onArtistPress={handleArtistPress} onMorePress={() => setAlbumOptsVisible(true)}
+      onDownload={() => {
+        useDownloadStore.getState().enqueueBatch(songs);
+        showToast(getT().songOptions.downloadQueued);
+      }}
     />
-  ), [topBarH, coverArtId, albumName, artistName, artistImageUrl, year, isShuffled, isStarred, loadingAlbum, coverScale, coverTranslateY, handlePlay, toggleShuffle, handleToggleStar, handleArtistPress]);
+  ), [topBarH, coverArtId, albumName, artistName, artistImageUrl, year, isShuffled, shuffleMode, isStarred, loadingAlbum, coverScale, coverTranslateY, handlePlay, toggleShuffle, handleToggleStar, handleArtistPress, songs]);
 
   return (
     <View style={styles.root}>

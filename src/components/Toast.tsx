@@ -3,7 +3,7 @@
  * @description Global toast notification system. Exposes `showToast(message)`
  *   imperative helper and renders a short-lived overlay above the mini player.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React, {useEffect, useRef, useState} from 'react';

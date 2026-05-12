@@ -4,13 +4,16 @@
  *   queue-loading functions resolve `currentPlaylistId` so the orange active-track
  *   indicator in PlaylistDetail stays accurate regardless of play context.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import TrackPlayer from 'react-native-track-player';
 import {getPlaylist} from '../api/endpoints/playlists';
 import {getStreamUrl, getCoverArtUrl, subsonicGet} from '../api/client';
+import {getSimilarSongs} from '../api/endpoints/library';
+import {getDeezerArtistId, getDeezerArtistTopTracks} from '../api/deezer';
 import {usePlayerStore} from '../store/playerStore';
+import {useDownloadStore} from '../store/downloadStore';
 import type {Track} from '../store/playerStore';
 
 function fisherYates(arr: Track[]): Track[] {
@@ -22,10 +25,35 @@ function fisherYates(arr: Track[]): Track[] {
   return a;
 }
 
+/**
+ * Converts an internal Track object to an RNTP-compatible track descriptor.
+ * URL resolution follows a strict priority hierarchy:
+ *   1. Local file  — `file://` absolute path from the download store (offline playback).
+ *   2. Navidrome   — authenticated stream URL for library-indexed tracks.
+ *   3. Deezer/ext  — pre-built URL embedded in the track object for ext- tracks.
+ *
+ * @param t - Internal Track object from the player store.
+ * @returns RNTP track object ready to be passed to TrackPlayer.add().
+ */
 export function toRNTPTrack(t: Track) {
+  const trackId = String(t.id);
+  const localPath = useDownloadStore.getState().getLocalPath(trackId);
+
+  let url: string;
+  if (localPath) {
+    // Priority 1: local file available — zero buffering, works offline.
+    url = `file://${localPath}`;
+  } else if (!trackId.startsWith('ext-')) {
+    // Priority 2: Navidrome stream — standard library track.
+    url = getStreamUrl(trackId);
+  } else {
+    // Priority 3: Deezer-sourced track — URL embedded at track creation time.
+    url = t.streamUrl ?? t.url ?? '';
+  }
+
   return {
-    id: String(t.id),
-    url: t.streamUrl ?? t.url ?? '',
+    id: trackId,
+    url,
     title: t.title,
     artist: t.artist,
     album: t.album,
@@ -33,6 +61,8 @@ export function toRNTPTrack(t: Track) {
     duration: t.duration,
     coverArt: t.coverArt,
     artistId: t.artistId,
+    isMagic: t.isMagic,
+    isAutoplay: t.isAutoplay,
   };
 }
 
@@ -63,13 +93,17 @@ export async function loadAndPlayPlaylist(
 
   const store = usePlayerStore.getState();
   store.setCurrentPlaylist(playlistId, playlistName);
+  store.setOriginalQueue(tracks);
   store.setQueue(ordered);
   store.setHistory([]);
   store.setUpcoming(ordered.slice(1));
 
   await TrackPlayer.reset();
-  await TrackPlayer.add(ordered.map(toRNTPTrack));
+  await TrackPlayer.add([toRNTPTrack(ordered[0])]);
   await TrackPlayer.play();
+  if (ordered.length > 1) {
+    TrackPlayer.add(ordered.slice(1).map(toRNTPTrack)).catch(() => {});
+  }
 }
 
 export async function loadAndPlayAlbum(
@@ -100,13 +134,17 @@ export async function loadAndPlayAlbum(
 
     const store = usePlayerStore.getState();
     store.setCurrentPlaylist(null, null);
+    store.setOriginalQueue(tracks);
     store.setQueue(ordered);
     store.setHistory([]);
     store.setUpcoming(ordered.slice(1));
 
     await TrackPlayer.reset();
-    await TrackPlayer.add(ordered.map(toRNTPTrack));
+    await TrackPlayer.add([toRNTPTrack(ordered[0])]);
     await TrackPlayer.play();
+    if (ordered.length > 1) {
+      TrackPlayer.add(ordered.slice(1).map(toRNTPTrack)).catch(() => {});
+    }
   } catch (error) {
     console.warn('Album playback error:', error);
   }
@@ -115,6 +153,7 @@ export async function loadAndPlayAlbum(
 export function playTrack(track: Track): void {
   const store = usePlayerStore.getState();
   store.setCurrentPlaylist(null, null);
+  store.setOriginalQueue([track]);
   store.setQueue([track]);
   store.setHistory([]);
   store.setUpcoming([]);
@@ -137,13 +176,21 @@ export async function loadAndPlayTracks(
   // This prevents orange-highlight bleed when playing from a non-playlist context
   // (album, liked songs, search) while a playlist screen is still visible.
   store.setCurrentPlaylist(playlistContext?.id ?? null, playlistContext?.name ?? null);
+  store.setOriginalQueue(tracks);
   store.setQueue(tracks);
   store.setHistory(tracks.slice(0, idx));
   store.setUpcoming(tracks.slice(idx + 1));
   await TrackPlayer.reset();
-  await TrackPlayer.add(tracks.map(toRNTPTrack));
-  if (idx > 0) await TrackPlayer.skip(idx);
+  await TrackPlayer.add([toRNTPTrack(tracks[idx])]);
   await TrackPlayer.play();
+  (async () => {
+    if (idx > 0) {
+      await TrackPlayer.add(tracks.slice(0, idx).map(toRNTPTrack), 0);
+    }
+    if (idx < tracks.length - 1) {
+      await TrackPlayer.add(tracks.slice(idx + 1).map(toRNTPTrack));
+    }
+  })().catch(() => {});
 }
 
 export function skipNext(): void {
@@ -183,7 +230,71 @@ export async function syncUpcomingFromRNTP(): Promise<void> {
       coverArt: t.coverArt ? String(t.coverArt) : undefined,
       url: String(t.url ?? ''),
       artwork: t.artwork ? String(t.artwork) : undefined,
+      isMagic: (t as any).isMagic ? true : undefined,
+      isAutoplay: (t as any).isAutoplay ? true : undefined,
     }));
     usePlayerStore.getState().setUpcoming(upcoming);
   } catch {}
+}
+
+export async function fetchAutoplayTracks(
+  seedTrack: Track,
+  existingIds: Set<string>,
+): Promise<Track[]> {
+  const pool: Track[] = [];
+
+  await Promise.allSettled([
+    // Deezer top tracks for the seed artist
+    (async () => {
+      const artistId = await getDeezerArtistId(seedTrack.artist).catch(() => null);
+      if (!artistId) return;
+      const tracks = await getDeezerArtistTopTracks(artistId, 15).catch(() => []);
+      for (const t of tracks) {
+        const sid = `ext-deezer-song-${t.id}`;
+        if (existingIds.has(sid)) continue;
+        existingIds.add(sid);
+        pool.push({
+          id: sid,
+          title: t.title,
+          artist: t.artist.name,
+          album: t.album.title,
+          duration: t.duration,
+          coverArt: sid,
+          streamUrl: getStreamUrl(sid),
+          url: getStreamUrl(sid),
+          artwork: getCoverArtUrl(sid, 300),
+          isAutoplay: true,
+        });
+      }
+    })(),
+    // Navidrome similar songs (skip for Deezer-sourced seeds)
+    (async () => {
+      if (seedTrack.id.startsWith('ext-')) return;
+      const similar = await getSimilarSongs(seedTrack.id, 15).catch(() => []);
+      for (const s of similar as any[]) {
+        const sid = String(s.id);
+        if (existingIds.has(sid)) continue;
+        existingIds.add(sid);
+        pool.push({
+          id: sid,
+          title: s.title,
+          artist: s.artist ?? '',
+          album: s.album ?? '',
+          duration: s.duration ?? 0,
+          coverArt: s.coverArt,
+          streamUrl: getStreamUrl(sid),
+          url: getStreamUrl(sid),
+          artwork: getCoverArtUrl(s.coverArt ?? sid, 300),
+          artistId: s.artistId ? String(s.artistId) : undefined,
+          isAutoplay: true,
+        });
+      }
+    })(),
+  ]);
+
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, 10);
 }

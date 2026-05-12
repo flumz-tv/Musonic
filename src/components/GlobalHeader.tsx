@@ -2,8 +2,10 @@
  * @file GlobalHeader.tsx
  * @description Top app bar used across main screens. Shows the Musonic logo,
  *   a hamburger drawer trigger, and optional horizontal filter pills.
+ *   OfflineBanner is rendered inline at the top (flex flow) to push header
+ *   content down instead of overlaying it.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.1.0
  * @license CC-BY-NC-4.0
  */
 import React from 'react';
@@ -11,6 +13,7 @@ import {View, Text, ScrollView, TouchableOpacity, StyleSheet} from 'react-native
 import {useDrawer} from './DrawerContainer';
 import Svg, {Defs, LinearGradient, Stop, Rect} from 'react-native-svg';
 import LogoIcon from './icons/LogoIcon';
+import OfflineBanner from './OfflineBanner';
 import {darkTheme} from '../theme';
 
 type Filter = {key: string; label: string};
@@ -32,54 +35,60 @@ export default function GlobalHeader(props: Props) {
 
   if (props.variant === 'simple') {
     return (
-      <View style={styles.simpleHeader}>
-        <TouchableOpacity onPress={openDrawer} style={styles.profileCircle} activeOpacity={0.7}>
-          <LogoIcon size={36} />
-        </TouchableOpacity>
-        <Text style={styles.simpleTitle}>{props.title}</Text>
+      <View>
+        <OfflineBanner />
+        <View style={styles.simpleHeader}>
+          <TouchableOpacity onPress={openDrawer} style={styles.profileCircle} activeOpacity={0.7}>
+            <LogoIcon size={36} />
+          </TouchableOpacity>
+          <Text style={styles.simpleTitle}>{props.title}</Text>
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.homeHeader}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.pillsContent}
-        style={styles.pillsScroll}>
-        {props.filters.map(f => (
-          <TouchableOpacity
-            key={f.key}
-            style={[styles.pill, props.activeFilter === f.key && styles.pillActive]}
-            onPress={() => props.onFilterPress(f.key)}
-            activeOpacity={0.8}>
-            <Text style={[styles.pillText, props.activeFilter === f.key && styles.pillTextActive]}>
-              {f.label}
-            </Text>
+    <View>
+      <OfflineBanner />
+      <View style={styles.homeHeader}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pillsContent}
+          style={styles.pillsScroll}>
+          {props.filters.map(f => (
+            <TouchableOpacity
+              key={f.key}
+              style={[styles.pill, props.activeFilter === f.key && styles.pillActive]}
+              onPress={() => props.onFilterPress(f.key)}
+              activeOpacity={0.8}>
+              <Text style={[styles.pillText, props.activeFilter === f.key && styles.pillTextActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Fade overlay on left edge of filter pills */}
+        <View style={styles.fadeOverlay} pointerEvents="none">
+          <Svg width={80} height={56}>
+            <Defs>
+              <LinearGradient id="hdrFade" x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor={darkTheme.background} stopOpacity={1} />
+                <Stop offset="0.6" stopColor={darkTheme.background} stopOpacity={1} />
+                <Stop offset="1" stopColor={darkTheme.background} stopOpacity={0} />
+              </LinearGradient>
+            </Defs>
+            <Rect x={0} y={0} width={80} height={56} fill="url(#hdrFade)" />
+          </Svg>
+        </View>
+
+        {/* Profil absolu au-dessus */}
+        <View style={styles.profileAbsolute}>
+          <TouchableOpacity onPress={openDrawer} style={styles.profileCircle} activeOpacity={0.7}>
+            <LogoIcon size={36} />
           </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Fade overlay on left edge of filter pills */}
-      <View style={styles.fadeOverlay} pointerEvents="none">
-        <Svg width={80} height={56}>
-          <Defs>
-            <LinearGradient id="hdrFade" x1="0" y1="0" x2="1" y2="0">
-              <Stop offset="0" stopColor={darkTheme.background} stopOpacity={1} />
-              <Stop offset="0.6" stopColor={darkTheme.background} stopOpacity={1} />
-              <Stop offset="1" stopColor={darkTheme.background} stopOpacity={0} />
-            </LinearGradient>
-          </Defs>
-          <Rect x={0} y={0} width={80} height={56} fill="url(#hdrFade)" />
-        </Svg>
-      </View>
-
-      {/* Profil absolu au-dessus */}
-      <View style={styles.profileAbsolute}>
-        <TouchableOpacity onPress={openDrawer} style={styles.profileCircle} activeOpacity={0.7}>
-          <LogoIcon size={36} />
-        </TouchableOpacity>
+        </View>
       </View>
     </View>
   );

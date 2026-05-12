@@ -3,7 +3,7 @@
  * @description Zustand store for network/connectivity state. Updated by
  *   connectivityService; consumed by OfflineBanner and Home auto-recovery.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import {create} from 'zustand';

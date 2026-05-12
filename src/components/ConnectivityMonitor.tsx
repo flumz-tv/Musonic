@@ -3,7 +3,7 @@
  * @description Null-render component that starts the connectivity polling service
  *   when mounted. Lives in App.tsx so network status is always tracked.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import {useEffect} from 'react';

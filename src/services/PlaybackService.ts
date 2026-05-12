@@ -4,12 +4,17 @@
  *   skip, seek, stop) fired from lock screen / notification buttons while the
  *   app is backgrounded or killed.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
-import TrackPlayer, {Event} from 'react-native-track-player';
+import TrackPlayer, {Event, State} from 'react-native-track-player';
 import {useSettingsStore} from '../store/settingsStore';
+import {usePlayerStore} from '../store/playerStore';
+import {fetchAutoplayTracks, toRNTPTrack} from './playerActions';
+import type {Track} from '../store/playerStore';
 
+let wasPlayingBeforeDuck = false;
+let isLoadingAutoplay = false;
 let fadeInTimer: ReturnType<typeof setInterval> | null = null;
 let fadeOutTimer: ReturnType<typeof setInterval> | null = null;
 let progressPoller: ReturnType<typeof setInterval> | null = null;
@@ -85,22 +90,60 @@ export async function PlaybackService() {
     TrackPlayer.seekTo(position),
   );
   TrackPlayer.addEventListener(Event.RemoteDuck, async ({permanent, paused}) => {
-    if (permanent) {
-      await TrackPlayer.pause();
-    } else if (paused) {
+    if (permanent || paused) {
+      const {state} = await TrackPlayer.getPlaybackState();
+      wasPlayingBeforeDuck = state === State.Playing;
       await TrackPlayer.pause();
     } else {
-      await TrackPlayer.play();
+      if (wasPlayingBeforeDuck) await TrackPlayer.play();
+      wasPlayingBeforeDuck = false;
     }
   });
-  TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, () => {
-    const {crossfadeDuration} = useSettingsStore.getState();
+  TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async () => {
+    const {crossfadeDuration, isAutoplayEnabled} = useSettingsStore.getState();
     clearAll();
     if (crossfadeDuration > 0) {
       startFadeIn(crossfadeDuration);
       startProgressPoller(crossfadeDuration);
     } else {
       TrackPlayer.setVolume(1).catch(() => {});
+    }
+
+    if (!isAutoplayEnabled || isLoadingAutoplay) return;
+    const {repeatMode, setUpcoming} = usePlayerStore.getState();
+    if (repeatMode !== 'none') return;
+
+    try {
+      const [queue, activeIdx] = await Promise.all([
+        TrackPlayer.getQueue(),
+        TrackPlayer.getActiveTrackIndex(),
+      ]);
+      if (activeIdx == null || queue.length === 0) return;
+      if (activeIdx < queue.length - 1) return;
+
+      const last = queue[queue.length - 1];
+      const seedTrack: Track = {
+        id: String(last.id),
+        title: String(last.title ?? ''),
+        artist: String(last.artist ?? ''),
+        album: String(last.album ?? ''),
+        duration: Number(last.duration ?? 0),
+        coverArt: last.coverArt ? String(last.coverArt) : undefined,
+        url: String(last.url ?? ''),
+        artwork: last.artwork ? String(last.artwork) : undefined,
+      };
+      const existingIds = new Set(queue.map(t => String(t.id)));
+
+      isLoadingAutoplay = true;
+      const autoplayTracks = await fetchAutoplayTracks(seedTrack, existingIds);
+      if (autoplayTracks.length > 0) {
+        await TrackPlayer.add(autoplayTracks.map(toRNTPTrack));
+        setUpcoming(autoplayTracks);
+      }
+    } catch (e) {
+      console.warn('[Autoplay]', e);
+    } finally {
+      isLoadingAutoplay = false;
     }
   });
 }

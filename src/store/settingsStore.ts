@@ -5,7 +5,7 @@
  *   Persisted across restarts; consumed by RootNavigator to gate the server-setup
  *   flow.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import {create} from 'zustand';
@@ -43,6 +43,14 @@ type SettingsState = {
   setUseWaveformScrubber: (use: boolean) => void;
   rotationLocked: boolean;
   setRotationLocked: (locked: boolean) => void;
+  isAutoplayEnabled: boolean;
+  setIsAutoplayEnabled: (enabled: boolean) => void;
+  isAutoDownloadEnabled: boolean;
+  setIsAutoDownloadEnabled: (enabled: boolean) => void;
+  isOfflineMode: boolean;
+  setOfflineMode: (v: boolean) => void;
+  autoOnlineMode: boolean;
+  setAutoOnlineMode: (v: boolean) => void;
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -68,6 +76,14 @@ export const useSettingsStore = create<SettingsState>()(
       setUseWaveformScrubber: use => set({useWaveformScrubber: use}),
       rotationLocked: false,
       setRotationLocked: locked => set({rotationLocked: locked}),
+      isAutoplayEnabled: true,
+      setIsAutoplayEnabled: enabled => set({isAutoplayEnabled: enabled}),
+      isAutoDownloadEnabled: false,
+      setIsAutoDownloadEnabled: enabled => set({isAutoDownloadEnabled: enabled}),
+      isOfflineMode: false,
+      setOfflineMode: v => set({isOfflineMode: v}),
+      autoOnlineMode: true,
+      setAutoOnlineMode: v => set({autoOnlineMode: v}),
       getActiveServer: () => {
         const {servers, activeServerId} = get();
         return servers.find(s => s.id === activeServerId) ?? null;

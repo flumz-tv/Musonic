@@ -4,7 +4,7 @@
  *   Handles i18n (EN/FR), scroll-reveal, sticky nav, screenshot tabs, and
  *   ambient hero parallax. No external runtime dependencies.
  * @author DoodzProg
- * @version 0.9.4
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 
@@ -19,7 +19,7 @@ const TRANSLATIONS = {
     'nav.setup':       'Setup',
     'nav.stack':       'Stack',
 
-    'hero.badge':          'v0.9.4 · Now available',
+    'hero.badge':          'v1.0.0 · Now available',
     'hero.headline':       'Self-hosted music,',
     'hero.headline.accent':'beautifully played.',
     'hero.subline':        'Musonic is an open-source mobile client for Navidrome &amp; Subsonic, with synced lyrics, ambient artwork visuals, and zero compromises.',
@@ -90,7 +90,7 @@ const TRANSLATIONS = {
     'nav.setup':       'Installation',
     'nav.stack':       'Stack',
 
-    'hero.badge':          'v0.9.4 · Disponible maintenant',
+    'hero.badge':          'v1.0.0 · Disponible maintenant',
     'hero.headline':       'Votre musique,',
     'hero.headline.accent':'magnifiquement jouée.',
     'hero.subline':        'Musonic est un client mobile open-source pour Navidrome &amp; Subsonic, avec paroles synchronisées, visuels ambiants et zéro compromis.',

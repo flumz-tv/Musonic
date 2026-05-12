@@ -3,7 +3,7 @@
  * @description SVG heart icon with filled/outline variants. Used for like/unlike
  *   actions; accent color when active.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React from 'react';

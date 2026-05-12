@@ -4,11 +4,12 @@
  *   every 15 s and updates networkStore.isOffline. Used by ConnectivityMonitor
  *   and the Home screen auto-recovery logic.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import {getActiveServer, pingServer} from '../api/client';
 import {useNetworkStore} from '../store/networkStore';
+import {useSettingsStore} from '../store/settingsStore';
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 
@@ -39,11 +40,18 @@ async function tick() {
   }
   try {
     await withTimeout(pingServer(server), PING_TIMEOUT_MS);
-    // setOffline(false) + setServerReachable(true) handled by axios interceptor on success
     useNetworkStore.getState().setServerReachable(true);
+    const s = useSettingsStore.getState();
+    if (s.isOfflineMode && s.autoOnlineMode) {
+      s.setOfflineMode(false);
+    }
     schedule(INTERVAL_NORMAL_MS);
   } catch {
     useNetworkStore.getState().setServerReachable(false);
+    const s = useSettingsStore.getState();
+    if (!s.isOfflineMode) {
+      s.setOfflineMode(true);
+    }
     schedule(INTERVAL_DEGRADED_MS);
   }
 }

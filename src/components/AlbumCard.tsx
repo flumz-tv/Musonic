@@ -3,7 +3,7 @@
  * @description Vertical card for displaying an album or single in horizontal
  *   scroll lists (Home, ArtistDetail). Shows cover art, name, and artist.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React from 'react';

@@ -2,7 +2,7 @@
  * @file HomeIcon.tsx
  * @description SVG home icon for the bottom tab navigator.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React from 'react';

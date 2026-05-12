@@ -3,7 +3,7 @@
  * @description Artist detail screen. Shows artist biography, top songs, and album
  *   discography fetched from the Subsonic API.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license MIT
  */
 
@@ -28,21 +28,42 @@ import LinearGradient from 'react-native-linear-gradient';
 import Svg, {Path} from 'react-native-svg';
 import {darkTheme} from '../../theme';
 import {subsonicGet, getStreamUrl, getCoverArtUrl} from '../../api/client';
+import {
+  getDeezerArtistId,
+  getDeezerRelatedArtists,
+  getDeezerArtistTopTracks,
+  enrichTracksWithAlbumType,
+  type DeezerTrack,
+} from '../../api/deezer';
 import {loadAndPlayTracks} from '../../services/playerActions';
 import type {Track} from '../../store/playerStore';
 import type {LibraryStackParams} from '../../navigation/types';
 import AlbumCard from '../../components/AlbumCard';
+import PlayIcon from '../../components/icons/PlayIcon';
+import CoverArt from '../../components/CoverArt';
 import {useT, getT} from '../../i18n';
 
 const {width: SCREEN_W} = Dimensions.get('window');
 const COVER_SIZE = SCREEN_W;
 
+function artDedupeById(tracks: DeezerTrack[]): DeezerTrack[] {
+  const seen = new Set<number>();
+  return tracks.filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+}
+
+function artDedupeAlbums(tracks: DeezerTrack[]): DeezerTrack[] {
+  const seen = new Set<number>();
+  return tracks.filter(t => {
+    if (t.isSingle) return true;
+    if (seen.has(t.album.id)) return false;
+    seen.add(t.album.id);
+    return true;
+  });
+}
+
 // ─── Icons ─────────────────────────────────────────────────────────────────
 function BackIcon({size = 24, color = '#fff'}: {size?: number; color?: string}) {
   return (<Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M15 4 L7 12 L15 20" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" fill="none" /></Svg>);
-}
-function PlayIcon({size = 24, color = '#000'}: {size?: number; color?: string}) {
-  return (<Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M7 4 L21 12 L7 20 Z" fill={color} /></Svg>);
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -60,11 +81,31 @@ export default function ArtistDetailScreen() {
   const [albums, setAlbums] = useState<any[]>([]);
   const [topSongs, setTopSongs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [similarAlbums, setSimilarAlbums] = useState<DeezerTrack[]>([]);
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const coverScale = scrollY.interpolate({ inputRange: [-100, 0, COVER_SIZE], outputRange: [1.3, 1, 1.1], extrapolate: 'clamp' });
   const coverOpacity = scrollY.interpolate({ inputRange: [0, COVER_SIZE * 0.6], outputRange: [1, 0], extrapolate: 'clamp' });
+
+  useEffect(() => {
+    if (loading || !artistName || artistName === t.artistDetail.loading) return;
+    async function loadSimilar() {
+      try {
+        const deezerId = await getDeezerArtistId(artistName);
+        if (!deezerId) return;
+        const related = await getDeezerRelatedArtists(deezerId, 6);
+        const rawArrays = await Promise.all(
+          related.map(ra => getDeezerArtistTopTracks(ra.id, 8).catch(() => [] as DeezerTrack[])),
+        );
+        const flat = artDedupeById(rawArrays.flat());
+        const enriched = await enrichTracksWithAlbumType(flat);
+        const albums = artDedupeAlbums(enriched.filter(t => !t.isSingle)).slice(0, 12);
+        setSimilarAlbums(albums);
+      } catch { /* silent */ }
+    }
+    loadSimilar();
+  }, [loading, artistName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     async function loadArtistData() {
@@ -177,6 +218,7 @@ export default function ArtistDetailScreen() {
                 {topSongs.slice(0, 5).map((song, index) => (
                   <View key={song.id} style={styles.songRow}>
                     <Text style={styles.songIndex}>{index + 1}</Text>
+                    <CoverArt id={song.coverArt} size={44} borderRadius={4} />
                     <View style={styles.songInfo}>
                       <Text style={styles.songTitle} numberOfLines={1}>{song.title}</Text>
                       <Text style={styles.songArtist} numberOfLines={1}>{song.album}</Text>
@@ -196,12 +238,34 @@ export default function ArtistDetailScreen() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.hList}
                   renderItem={({item}) => (
-                    <AlbumCard 
-                      id={item.id} 
-                      name={item.name} 
-                      artist={item.artist} 
+                    <AlbumCard
+                      id={item.id}
+                      name={item.name}
+                      artist={item.artist}
                       coverArt={item.coverArt}
                       onPress={() => navigation.navigate('AlbumDetail', { albumId: item.id })}
+                    />
+                  )}
+                />
+              </View>
+            )}
+
+            {similarAlbums.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{t.artistDetail.similarRecommendations}</Text>
+                <FlatList
+                  horizontal
+                  data={similarAlbums}
+                  keyExtractor={item => `sim-${item.id}`}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.hList}
+                  renderItem={({item}) => (
+                    <AlbumCard
+                      id={String(item.id)}
+                      name={item.album.title}
+                      artist={item.artist.name}
+                      imageUrl={item.album.cover_medium}
+                      onPress={() => navigation.navigate('AlbumDetail', {albumId: `ext-deezer-album-${item.album.id}`})}
                     />
                   )}
                 />
@@ -232,8 +296,8 @@ const styles = StyleSheet.create({
   section: { marginBottom: 32 },
   sectionTitle: { fontSize: 20, fontWeight: '700', color: '#fff', paddingHorizontal: 16, marginBottom: 16 },
   hList: { paddingHorizontal: 16, gap: 16 },
-  songRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 16 },
-  songIndex: { width: 20, fontSize: 14, fontWeight: '600', color: '#888', textAlign: 'center' },
+  songRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 8, paddingRight: 16, paddingVertical: 10, gap: 12 },
+  songIndex: { width: 24, fontSize: 14, fontWeight: '600', color: '#888', textAlign: 'right' },
   songInfo: { flex: 1 },
   songTitle: { fontSize: 16, fontWeight: '500', color: '#fff' },
   songArtist: { fontSize: 13, color: '#aaa', marginTop: 2 },

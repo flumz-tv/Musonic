@@ -3,7 +3,7 @@
  * @description English UI strings. Mirrors the structure of fr.ts exactly.
  *   Swap the active locale in i18n/index.ts to enable English.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 export const en = {
@@ -54,6 +54,12 @@ export const en = {
       `Log out of:\n\n${name}\n${url}`,
     logoutConfirm: 'Log out',
     cancelButton: 'Cancel',
+    goOffline: 'Go offline (Beta)',
+    goOnline: 'Back online',
+    offlineActive: 'Active',
+    pingFailed: 'Cannot connect to server',
+    pingFailedMessage: 'Unable to reach the server. Check your network settings or your connection status, or try closing and reopening the app.',
+    storageLabel: 'Downloaded music storage',
   },
 
   // ─── Home ──────────────────────────────────────────────────────────────────
@@ -62,6 +68,7 @@ export const en = {
     unknownTitle: 'Unknown title',
     unknownArtist: 'Unknown artist',
     loadError: 'Could not load home',
+    offlineEmptyState: 'Content not available offline',
     typeSingle: 'Single',
     typeAlbum: 'Album',
     filters: {
@@ -97,6 +104,18 @@ export const en = {
       title: 'Recent searches',
       clear: 'Clear',
     },
+    offlineEmptyState: 'Search not available offline',
+    discover: {
+      sectionTitle: 'Discover',
+      loading: 'Loading recommendations...',
+      empty: 'Like some tracks to get recommendations',
+      basedOnLikes: 'Based on your liked songs',
+      albumsBasedOnLikes: 'Albums based on your liked songs',
+      tracksBasedOnLikes: 'Tracks based on your liked songs',
+      basedOnRecent: 'Based on recent listens',
+      sameStyle: (artist: string) => `In the same style as ${artist}`,
+      sameStyleTitle: 'In the same style as…',
+    },
   },
 
   // ─── Library ───────────────────────────────────────────────────────────────
@@ -105,6 +124,11 @@ export const en = {
     sortTitle: 'Sort by',
     emptyState: 'Nothing here yet',
     loadError: 'Could not load library',
+    offlineEmptyState: 'No downloaded content',
+    offlineDownloadTitle: 'Download playlist?',
+    offlineDownloadMessage: (name: string, n: number) =>
+      `Download "${name}" for offline playback? (${n} song${n !== 1 ? 's' : ''})`,
+    offlineDownloadComplete: (name: string) => `"${name}" available offline`,
     likedTrackCount: (n: number) => `${n} liked song${n !== 1 ? 's' : ''}`,
     sort: {
       recent: 'Recent',
@@ -133,6 +157,8 @@ export const en = {
       info: 'Name & info',
     },
     comingSoon: 'Coming soon',
+    noDownloadedSongs: 'No downloaded songs in this playlist',
+    offlineRecoLabel: 'Suggestions from your downloads',
     editHeader: 'Edit playlist',
     saveButton: 'Save',
     savedToast: 'Playlist updated',
@@ -140,6 +166,9 @@ export const en = {
     recommendations: {
       title: 'Suggested tracks',
       subtitle: 'Based on this playlist',
+      loading: 'Loading recommendations...',
+      added: 'Added to playlist',
+      notOnServer: 'Track not on your server yet',
     },
   },
 
@@ -157,6 +186,8 @@ export const en = {
     manageInPlaylists: 'Manage in playlists',
     addError: 'Error adding track',
     removeError: 'Error removing track',
+    download: 'Download',
+    downloadQueued: 'Download queued',
   },
 
   // ─── Playlist Options Sheet ────────────────────────────────────────────────
@@ -267,6 +298,8 @@ export const en = {
   offline: {
     noInternet: 'No internet connection',
     serverUnreachable: 'Server unreachable',
+    offlineModeActive: 'Offline mode (Beta)',
+    goOffline: 'Offline mode (Beta)',
   },
 
   // ─── Settings ──────────────────────────────────────────────────────────────
@@ -280,6 +313,7 @@ export const en = {
       transitions: 'Track transitions',
       playback: 'Playback controls',
       display: 'Display',
+      offline: 'Offline mode (Beta)',
     },
     player: {
       progressLabel: 'Progress bar style',
@@ -294,11 +328,45 @@ export const en = {
     playback: {
       monoLabel: 'Mono audio content',
       monoDesc: 'Left and right speakers output identical audio.',
+      autoplayLabel: 'Autoplay',
+      autoplayDesc: 'Automatically plays similar tracks when the queue ends.',
+      autoDownloadLabel: 'Auto-download',
+      autoDownloadDesc: 'Downloads tracks to your device for offline playback.',
+      autoDownloadAlertTitle: 'Enable auto-download',
+      autoDownloadAlertMessage: 'Warning: Auto-download consumes storage on your device AND bandwidth on your server (Navidrome). Do you really want to enable it?',
+      autoDownloadAlertConfirm: 'Enable',
+      autoDownloadAlertCancel: 'Cancel',
     },
     display: {
       lockRotationLabel: 'Lock screen rotation',
       lockRotationDesc: 'Force portrait mode, even when the phone is tilted.',
     },
+    offline: {
+      autoOnlineLabel: 'Automatic reconnection',
+      autoOnlineDesc: 'Automatically returns to online mode when the server is reachable again.',
+    },
+    updates: {
+      sectionTitle: 'About',
+      checkButton: 'Check for updates',
+      upToDateTitle: "You're up to date",
+      upToDateMessage: (local: string, remote: string) =>
+        `You are currently on the latest available version.\nYour version: v${local}\nLatest online: v${remote}`,
+      newVersionTitle: 'Update available',
+      newVersionMessage: (v: string) => `Version ${v} is available on GitHub.`,
+      viewRelease: 'View release',
+      error: 'Check failed. Verify your connection.',
+    },
+  },
+
+  // ─── Downloads ────────────────────────────────────────────────────────────────
+  downloads: {
+    deleteSongTitle: 'Remove download',
+    deleteSongMessage: (title: string) => `Remove "${title}" from your downloads?`,
+    deletePlaylistTitle: 'Remove downloads',
+    deletePlaylistMessage: (name: string, n: number) =>
+      `Remove playlist "${name}" (${n} song${n !== 1 ? 's' : ''}) from your downloads?`,
+    deleteConfirm: 'Remove',
+    cancelButton: 'Cancel',
   },
 
   // ─── Full Screen Player ────────────────────────────────────────────────────
@@ -317,6 +385,7 @@ export const en = {
     loading: 'Loading...',
     popularSongs: 'Popular',
     popularReleases: 'Popular releases',
+    similarRecommendations: 'Similar artists',
   },
 
   // ─── Album Detail ──────────────────────────────────────────────────────────

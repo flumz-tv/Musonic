@@ -4,7 +4,7 @@
  *   calls setupPlayer, configures capabilities (play, pause, skip, seek, like),
  *   and registers notification/lock-screen options.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import {useEffect, useRef} from 'react';

@@ -3,7 +3,7 @@
  * @description Modal for viewing and editing playlist metadata (name, description,
  *   cover art). Also provides the delete playlist action.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import React, {useCallback, useEffect, useState} from 'react';
@@ -221,7 +221,7 @@ export default function PlaylistInfoModal({
 
       <KeyboardAvoidingView
         style={styles.sheetWrap}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <SafeAreaView style={styles.sheet} edges={['bottom']}>
           {/* Drag handle */}
           <View style={styles.handleWrap}>

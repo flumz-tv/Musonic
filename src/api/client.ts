@@ -1,15 +1,12 @@
 /**
  * @file client.ts
- * @description Subsonic API client. Configures the axios instance with server
- *   credentials, builds authenticated request URLs, and exposes helpers for
- *   stream/cover-art URLs. All requests are made against the active server stored
- *   in settingsStore.
+ * @description Subsonic API client. Builds authenticated request URLs and exposes
+ *   helpers for stream/cover-art URLs. All requests are made against the active
+ *   server stored in settingsStore.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
-import axios from 'axios';
-import qs from 'qs';
 import type {Server} from '../store/settingsStore';
 import {useNetworkStore} from '../store/networkStore';
 
@@ -29,21 +26,6 @@ export class SubsonicError extends Error {
     );
   }
 }
-
-axios.interceptors.response.use(
-  res => {
-    const store = useNetworkStore.getState();
-    store.setOffline(false);
-    store.setServerReachable(true);
-    return res;
-  },
-  err => {
-    if (!err.response && err.message === 'Network Error') {
-      useNetworkStore.getState().setOffline(true);
-    }
-    return Promise.reject(err);
-  },
-);
 
 let _server: Server | null = null;
 
@@ -71,6 +53,19 @@ export function getCoverArtUrl(id: string, size = 300): string {
   return `${base}/rest/getCoverArt.view?${p.toString()}`;
 }
 
+async function fetchWithTimeout(urlStr: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(urlStr, {signal: controller.signal});
+    clearTimeout(timer);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
 export async function subsonicGet<T>(
   endpoint: string,
   params: Record<string, unknown> = {},
@@ -78,43 +73,45 @@ export async function subsonicGet<T>(
   if (!_server) throw new Error('No server configured');
   const {url, username, password} = _server;
 
-  const res = await axios.get(`${url.replace(/\/$/, '')}/rest/${endpoint}`, {
-    params: {
-      u: username,
-      p: password,
-      v: '1.16.1',
-      c: 'Musonic',
-      f: 'json',
-      ...params,
-    },
-    paramsSerializer: {
-      serialize: p => qs.stringify(p, {arrayFormat: 'repeat'}),
-    },
-    timeout: 10000,
-  });
-
-  const body = res.data['subsonic-response'];
-  if (body.status !== 'ok') {
-    throw new SubsonicError(body.error?.message ?? 'Subsonic error');
+  const p = new URLSearchParams({u: username, p: password, v: '1.16.1', c: 'Musonic', f: 'json'});
+  for (const [k, v] of Object.entries(params)) {
+    if (Array.isArray(v)) {
+      v.forEach(item => p.append(k, String(item)));
+    } else if (v !== undefined && v !== null) {
+      p.append(k, String(v));
+    }
   }
-  return body as T;
+
+  const urlStr = `${url.replace(/\/$/, '')}/rest/${endpoint}?${p.toString()}`;
+  try {
+    const res = await fetchWithTimeout(urlStr, 10000);
+    const store = useNetworkStore.getState();
+    store.setOffline(false);
+    store.setServerReachable(true);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const body = data['subsonic-response'];
+    if (body.status !== 'ok') {
+      throw new SubsonicError(body.error?.message ?? 'Subsonic error');
+    }
+    return body as T;
+  } catch (err) {
+    if (err instanceof TypeError) {
+      useNetworkStore.getState().setOffline(true);
+    }
+    throw err;
+  }
 }
 
 export async function pingServer(server: Server): Promise<void> {
-  const res = await axios.get(
-    `${server.url.replace(/\/$/, '')}/rest/ping.view`,
-    {
-      params: {
-        u: server.username,
-        p: server.password,
-        v: '1.16.1',
-        c: 'Musonic',
-        f: 'json',
-      },
-      timeout: 8000,
-    },
-  );
-  const body = res.data['subsonic-response'];
+  const p = new URLSearchParams({
+    u: server.username, p: server.password, v: '1.16.1', c: 'Musonic', f: 'json',
+  });
+  const urlStr = `${server.url.replace(/\/$/, '')}/rest/ping.view?${p.toString()}`;
+  const res = await fetchWithTimeout(urlStr, 8000);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  const body = data['subsonic-response'];
   if (body.status !== 'ok') {
     throw new Error(body.error?.message ?? 'Auth failed');
   }

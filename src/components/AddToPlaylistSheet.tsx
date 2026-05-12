@@ -3,17 +3,14 @@
  * @description Bottom sheet for adding one or more tracks to existing playlists
  *   or creating a new one. Updates the playlist membership cache on success.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
-  Animated,
   Dimensions,
-  Easing,
   Modal,
-  PanResponder,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,6 +18,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, {useSharedValue, useAnimatedStyle, withTiming, withSpring, Easing, runOnJS} from 'react-native-reanimated';
+import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import Svg, {Circle, Path} from 'react-native-svg';
 import CoverArt from './CoverArt';
 import {usePlayerStore} from '../store/playerStore';
@@ -135,10 +134,9 @@ export default function AddToPlaylistSheet({
   onToast,
 }: Props) {
   const t = useT();
-  const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
-  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const translateY = useSharedValue(SHEET_HEIGHT);
+  const overlayOpacity = useSharedValue(0);
   const [search, setSearch] = useState('');
-  const scrollY = useRef(0);
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -177,38 +175,33 @@ export default function AddToPlaylistSheet({
     }
   }, [trackId, isMultiMode]);
 
+  const sheetStyle = useAnimatedStyle(() => ({transform: [{translateY: translateY.value}]}));
+  const overlayStyle = useAnimatedStyle(() => ({opacity: overlayOpacity.value}));
+
+  const handleGesture = Gesture.Pan()
+    .onUpdate(e => {
+      'worklet';
+      if (e.translationY > 0) translateY.value = e.translationY;
+    })
+    .onEnd(e => {
+      'worklet';
+      if (e.translationY > 50 || e.velocityY > 300) {
+        runOnJS(onClose)();
+      } else {
+        translateY.value = withSpring(0, {damping: 20, stiffness: 200});
+      }
+    });
+
   useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 320,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(overlayOpacity, {
-          toValue: 0.78,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      translateY.value = withTiming(0, {duration: 320, easing: Easing.out(Easing.cubic)});
+      overlayOpacity.value = withTiming(0.78, {duration: 200});
       loadPlaylists();
     } else {
-      Animated.parallel([
-        Animated.timing(translateY, {
-          toValue: SHEET_HEIGHT,
-          duration: 260,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(overlayOpacity, {
-          toValue: 0,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      translateY.value = withTiming(SHEET_HEIGHT, {duration: 260, easing: Easing.in(Easing.cubic)});
+      overlayOpacity.value = withTiming(0, {duration: 180});
     }
-  }, [visible, translateY, overlayOpacity, loadPlaylists]);
+  }, [visible, loadPlaylists]);
 
   const handleToggle = useCallback(
     async (item: PlaylistItem) => {
@@ -341,44 +334,6 @@ export default function AddToPlaylistSheet({
     [trackId, onClose, onToast, setPlaylistSong, bumpPlaylistVersion, cacheAdd],
   );
 
-  const handlePanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 5,
-      onPanResponderMove: (_, gs) => {
-        if (gs.dy > 0) translateY.setValue(gs.dy);
-      },
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dy > 50 || gs.vy > 0.3) {
-          onClose();
-        } else {
-          Animated.spring(translateY, {toValue: 0, useNativeDriver: true}).start();
-        }
-      },
-    }),
-  ).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (_e, gs) =>
-        gs.dy > 10 &&
-        Math.abs(gs.dy) > Math.abs(gs.dx) * 1.5 &&
-        scrollY.current < 5,
-      onMoveShouldSetPanResponder: (_e, gs) =>
-        gs.dy > 8 && Math.abs(gs.dy) > Math.abs(gs.dx),
-      onPanResponderMove: (_e, gs) => {
-        if (gs.dy > 0) translateY.setValue(gs.dy);
-      },
-      onPanResponderRelease: (_e, gs) => {
-        if (gs.dy > 50 || gs.vy > 0.3) {
-          onClose();
-        } else {
-          Animated.spring(translateY, {toValue: 0, useNativeDriver: true}).start();
-        }
-      },
-    }),
-  ).current;
-
   const filtered = search
     ? playlists.filter(p =>
         p.name.toLowerCase().includes(search.toLowerCase()),
@@ -396,25 +351,23 @@ export default function AddToPlaylistSheet({
         animationType="none"
         statusBarTranslucent
         onRequestClose={onClose}>
+        <GestureHandlerRootView style={StyleSheet.absoluteFill}>
 
-        {/* Overlay */}
-        <Animated.View
-          style={[
-            StyleSheet.absoluteFill,
-            styles.overlay, {opacity: overlayOpacity},
-          ]}
-          pointerEvents="none"
-        />
+          {/* Overlay */}
+          <Animated.View
+            style={[StyleSheet.absoluteFill, styles.overlay, overlayStyle]}
+            pointerEvents="none"
+          />
 
-        {/* Sheet */}
-        <Animated.View
-          style={[styles.sheet, {transform: [{translateY}]}]}
-          {...panResponder.panHandlers}>
+          {/* Sheet */}
+          <Animated.View style={[styles.sheet, sheetStyle]}>
 
-          {/* Handle */}
-          <View style={styles.handleArea} {...handlePanResponder.panHandlers}>
-            <View style={styles.handle} />
-          </View>
+            {/* Handle */}
+            <GestureDetector gesture={handleGesture}>
+              <View style={styles.handleArea}>
+                <View style={styles.handle} />
+              </View>
+            </GestureDetector>
 
           {/* Header */}
           <View style={styles.header}>
@@ -437,11 +390,7 @@ export default function AddToPlaylistSheet({
           ) : (
             <ScrollView
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
-              onScroll={e => {
-                scrollY.current = e.nativeEvent.contentOffset.y;
-              }}
-              scrollEventThrottle={16}>
+              contentContainerStyle={styles.scrollContent}>
 
               {/* Active playlists (contains track) */}
               {active.map(item => (
@@ -494,7 +443,8 @@ export default function AddToPlaylistSheet({
 
             </ScrollView>
           )}
-        </Animated.View>
+          </Animated.View>
+        </GestureHandlerRootView>
       </Modal>
 
       <CreatePlaylistModal

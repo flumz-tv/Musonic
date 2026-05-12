@@ -3,7 +3,7 @@
  * @description Zustand + MMKV store for recent search terms. Keeps the last 10
  *   unique queries; shown in SearchActive when the input is focused and empty.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import {create} from 'zustand';

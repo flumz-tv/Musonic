@@ -5,13 +5,14 @@
  *   and full-screen player visibility. RNTP is the source of truth for audio;
  *   this store is the source of truth for UI.
  * @author DoodzProg
- * @version 0.9.1
+ * @version 1.0.0
  * @license CC-BY-NC-4.0
  */
 import {create} from 'zustand';
 import TrackPlayer, {RepeatMode, State} from 'react-native-track-player';
-import {star, unstar} from '../api/endpoints/library';
-import {SubsonicError} from '../api/client';
+import {star, unstar, getRandomSongs, getSimilarSongs} from '../api/endpoints/library';
+import {SubsonicError, getStreamUrl, getCoverArtUrl} from '../api/client';
+import {getDeezerArtistId, getDeezerArtistTopTracks, type DeezerTrack} from '../api/deezer';
 import {getT} from '../i18n';
 
 export type Track = {
@@ -25,7 +26,11 @@ export type Track = {
   artistId?: string;
   url?: string;
   artwork?: string;
+  isMagic?: boolean;
+  isAutoplay?: boolean;
 };
+
+export type ShuffleMode = 'off' | 'on' | 'magic';
 
 export type RepeatModeUI = 'none' | 'all' | 'one';
 
@@ -40,10 +45,12 @@ type PlayerState = {
   queue: Track[];
   history: Track[];
   upcoming: Track[];
+  originalQueue: Track[];
   // UI-only state not tracked by RNTP
   isMiniPlayerVisible: boolean;
   dominantColor: string;
   isShuffled: boolean;
+  shuffleMode: ShuffleMode;
   repeatMode: RepeatModeUI;
   isFullScreenOpen: boolean;
   likedSongIds: Set<string>;
@@ -53,10 +60,12 @@ type PlayerState = {
   currentPlaylistName: string | null;
   lastPlayedPlaylists: Record<string, number>;
   playlistVersion: number;
+  isFetchingMagic: boolean;
 
   setQueue: (tracks: Track[]) => void;
   setHistory: (history: Track[]) => void;
   setUpcoming: (upcoming: Track[]) => void;
+  setOriginalQueue: (tracks: Track[]) => void;
   setMiniPlayerVisible: (visible: boolean) => void;
   onTrackChanged: () => void;
   togglePlay: () => void;
@@ -81,15 +90,28 @@ type PlayerState = {
   removeFromQueue: (ids: string[]) => void;
   moveToTop: (ids: string[]) => void;
   bumpPlaylistVersion: () => void;
+  setFetchingMagic: (v: boolean) => void;
+  setShuffleMode: (mode: ShuffleMode) => void;
 };
+
+async function addInChunks(tracks: any[], chunkSize = 15): Promise<void> {
+  for (let i = 0; i < tracks.length; i += chunkSize) {
+    await TrackPlayer.add(tracks.slice(i, i + chunkSize));
+    if (i + chunkSize < tracks.length) {
+      await new Promise<void>(r => setTimeout(r, 10));
+    }
+  }
+}
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
   queue: [],
+  originalQueue: [],
   history: [],
   upcoming: [],
   isMiniPlayerVisible: false,
   dominantColor: '#3D1F0F',
   isShuffled: false,
+  shuffleMode: 'off' as ShuffleMode,
   repeatMode: 'none',
   isFullScreenOpen: false,
   likedSongIds: new Set<string>(),
@@ -101,10 +123,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   currentPlaylistName: null,
   lastPlayedPlaylists: {},
   playlistVersion: 0,
+  isFetchingMagic: false,
 
   setQueue: tracks => set({queue: tracks}),
   setHistory: history => set({history}),
   setUpcoming: upcoming => set({upcoming}),
+  setOriginalQueue: tracks => set({originalQueue: tracks}),
   setMiniPlayerVisible: visible => set({isMiniPlayerVisible: visible}),
 
   onTrackChanged: () => set({isMiniPlayerVisible: true}),
@@ -127,7 +151,170 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   setDominantColor: color => set({dominantColor: color}),
 
-  toggleShuffle: () => set(s => ({isShuffled: !s.isShuffled})),
+  toggleShuffle: () => {
+    const {shuffleMode, originalQueue} = get();
+    const nextMode: ShuffleMode =
+      shuffleMode === 'off' ? 'on' : shuffleMode === 'on' ? 'magic' : 'off';
+    const newShuffled = nextMode !== 'off';
+    set({shuffleMode: nextMode, isShuffled: newShuffled});
+
+    const toRNTP = (t: Track) => ({
+      id: String(t.id),
+      url: t.url ?? (t as any).streamUrl ?? '',
+      title: t.title,
+      artist: t.artist,
+      album: t.album,
+      artwork: t.artwork ?? '',
+      duration: t.duration,
+      coverArt: t.coverArt,
+      artistId: t.artistId,
+      isMagic: t.isMagic,
+    });
+
+    const rnTrackToTrack = (t: any): Track => ({
+      id: String(t.id),
+      title: String(t.title ?? ''),
+      artist: String(t.artist ?? ''),
+      album: String(t.album ?? ''),
+      duration: Number(t.duration ?? 0),
+      coverArt: t.coverArt ? String(t.coverArt) : undefined,
+      url: String(t.url ?? ''),
+      artwork: t.artwork ? String(t.artwork) : undefined,
+      artistId: t.artistId ? String(t.artistId) : undefined,
+      isMagic: t.isMagic ? true : undefined,
+    });
+
+    (async () => {
+      try {
+        const [activeIdx, rnQueue] = await Promise.all([
+          TrackPlayer.getActiveTrackIndex(),
+          TrackPlayer.getQueue(),
+        ]);
+        if (activeIdx == null || rnQueue.length === 0) return;
+
+        const upcomingRN = rnQueue.slice(activeIdx + 1);
+        const idxToRemove = upcomingRN.map((_, i) => activeIdx + 1 + i);
+
+        if (nextMode === 'on') {
+          const arr = upcomingRN.map(rnTrackToTrack);
+          for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+          }
+          if (idxToRemove.length > 0) await TrackPlayer.remove(idxToRemove);
+          if (arr.length > 0) await TrackPlayer.add(arr.map(toRNTP));
+          set({upcoming: arr});
+        } else if (nextMode === 'magic') {
+          set({isFetchingMagic: true});
+          try {
+          // Filter out existing magic tracks, keep only playlist tracks
+          const playlistTracks = upcomingRN
+            .map(rnTrackToTrack)
+            .filter(t => !t.isMagic);
+          const magicCount = Math.max(1, Math.floor(playlistTracks.length / 2));
+          const queueIds = new Set(playlistTracks.map(t => t.id));
+
+          // ── Genre-aware magic: Deezer top tracks for queue artists ──────────
+          const artistNames = [...new Set(
+            playlistTracks.slice(0, 10).map(t => t.artist).filter(Boolean),
+          )].slice(0, 3);
+
+          const [deezerArrays, navidromePool] = await Promise.all([
+            Promise.all(artistNames.map(async name => {
+              const id = await getDeezerArtistId(name).catch(() => null);
+              if (!id) return [] as DeezerTrack[];
+              return getDeezerArtistTopTracks(id, 10).catch(() => [] as DeezerTrack[]);
+            })),
+            // Navidrome similar songs for first native (non-Deezer) track
+            (async () => {
+              const firstNative = playlistTracks.find(t => !t.id.startsWith('ext-'));
+              if (!firstNative) return [];
+              return getSimilarSongs(firstNative.id, 10).catch(() => []);
+            })(),
+          ]);
+
+          const deezerPool = [...new Map(
+            deezerArrays.flat().map(t => [t.id, t]),
+          ).values()];
+
+          const deezerMagic: Track[] = deezerPool.map(t => {
+            const sid = `ext-deezer-song-${t.id}`;
+            return {
+              id: sid, title: t.title, artist: t.artist.name, album: t.album.title,
+              duration: t.duration, coverArt: sid,
+              streamUrl: getStreamUrl(sid), url: getStreamUrl(sid),
+              artwork: getCoverArtUrl(sid, 300), isMagic: true as const,
+            };
+          }).filter(t => !queueIds.has(t.id));
+
+          const navidromeMagic: Track[] = (navidromePool as any[])
+            .filter((s: any) => !queueIds.has(String(s.id)))
+            .map((s: any) => ({
+              id: String(s.id), title: s.title, artist: s.artist ?? '',
+              album: s.album ?? '', duration: s.duration ?? 0, coverArt: s.coverArt,
+              streamUrl: getStreamUrl(String(s.id)), url: getStreamUrl(String(s.id)),
+              artwork: getCoverArtUrl(s.coverArt ?? String(s.id), 300),
+              artistId: s.artistId ? String(s.artistId) : undefined, isMagic: true as const,
+            }));
+
+          // Shuffle pool — mix Deezer + Navidrome related tracks
+          const pool: Track[] = [...deezerMagic, ...navidromeMagic];
+          for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+          }
+
+          // Fall back to random songs only if genre resolution produced nothing
+          const rawMagic = pool.length > 0
+            ? pool.slice(0, magicCount)
+            : await getRandomSongs(magicCount).catch(() => []).then(
+                (ss: any[]) => ss.map(s => ({
+                  id: String(s.id), title: s.title, artist: s.artist ?? '',
+                  album: s.album ?? '', duration: s.duration ?? 0, coverArt: s.coverArt,
+                  streamUrl: getStreamUrl(String(s.id)), url: getStreamUrl(String(s.id)),
+                  artwork: getCoverArtUrl(s.coverArt ?? String(s.id), 300), isMagic: true as const,
+                })),
+              );
+
+          // Interleave: every 2 playlist tracks, insert 1 magic track
+          const magicTracks = rawMagic;
+          const interleaved: Track[] = [];
+          let magicIdx = 0;
+          for (let i = 0; i < playlistTracks.length; i++) {
+            interleaved.push(playlistTracks[i]);
+            if ((i + 1) % 2 === 0 && magicIdx < magicTracks.length) {
+              interleaved.push(magicTracks[magicIdx++]);
+            }
+          }
+          while (magicIdx < magicTracks.length) {
+            interleaved.push(magicTracks[magicIdx++]);
+          }
+          if (idxToRemove.length > 0) await TrackPlayer.remove(idxToRemove);
+          if (interleaved.length > 0) await addInChunks(interleaved.map(toRNTP));
+          set({upcoming: interleaved});
+          } finally {
+            set({isFetchingMagic: false});
+          }
+        } else {
+          // Restore original queue order, strip magic tracks
+          if (!originalQueue.length) {
+            if (idxToRemove.length > 0) await TrackPlayer.remove(idxToRemove);
+            set({upcoming: []});
+            return;
+          }
+          const currentId = String(rnQueue[activeIdx].id);
+          const origIdx = originalQueue.findIndex(t => String(t.id) === currentId);
+          const restored = (origIdx >= 0 ? originalQueue.slice(origIdx + 1) : [])
+            .filter(t => !t.isMagic);
+          if (idxToRemove.length > 0) await TrackPlayer.remove(idxToRemove);
+          if (restored.length > 0) await TrackPlayer.add(restored.map(toRNTP));
+          set({upcoming: restored});
+        }
+      } catch (e) {
+        console.warn('[toggleShuffle] queue reorder failed', e);
+      }
+    })();
+  },
 
   cycleRepeat: () => {
     const next: Record<RepeatModeUI, RepeatModeUI> = {
@@ -163,6 +350,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setPendingLikeToast: msg => set({pendingLikeToast: msg}),
 
   toggleLike: (trackId: string): Promise<boolean> => {
+    if (trackId.startsWith('ext-')) {
+      set({pendingLikeToast: getT().likes.unavailableTrack});
+      return Promise.resolve(false);
+    }
     const {likedSongIds, localLikeOverrides} = get();
     const currentLiked = localLikeOverrides[trackId] ?? likedSongIds.has(trackId);
     const newLiked = !currentLiked;
@@ -251,4 +442,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   bumpPlaylistVersion: () => set(s => ({playlistVersion: s.playlistVersion + 1})),
+  setFetchingMagic: v => set({isFetchingMagic: v}),
+  setShuffleMode: mode => set({shuffleMode: mode, isShuffled: mode !== 'off'}),
 }));

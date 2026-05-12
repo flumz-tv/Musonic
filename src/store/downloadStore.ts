@@ -1,0 +1,404 @@
+/**
+ * @file downloadStore.ts
+ * @description Zustand store managing offline track downloads. Persists completed
+ *   downloads to MMKV so they survive app restarts. Uses a module-level semaphore
+ *   to cap concurrent network transfers at MAX_CONCURRENT (3). Only Navidrome-
+ *   indexed tracks are downloadable; Deezer-sourced tracks (ext- prefix) are
+ *   silently ignored because they cannot be streamed through Navidrome.
+ * @author DoodzProg
+ * @version 1.0.0
+ * @license CC-BY-NC-4.0
+ */
+import {create} from 'zustand';
+import {persist, createJSONStorage} from 'zustand/middleware';
+import {mmkvStorage} from './storage';
+import RNBlobUtil from 'react-native-blob-util';
+import {getStreamUrl} from '../api/client';
+import type {SubsonicSong} from '../api/types';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/** Maximum number of simultaneous download tasks. Keeps the network sane. */
+const MAX_CONCURRENT = 3;
+
+/** Progress callback fire interval in ms — balances UI refresh vs JS thread load. */
+const PROGRESS_INTERVAL_MS = 300;
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+/** Lifecycle state of a single download task. */
+export type DownloadStatus = 'queued' | 'downloading' | 'complete' | 'error';
+
+/**
+ * Metadata for a fully downloaded, locally-stored track.
+ * This is the persisted shape — kept in MMKV across restarts.
+ */
+export type DownloadedTrack = {
+  /** Navidrome track ID (matches SubsonicSong.id). */
+  trackId: string;
+  /** Absolute filesystem path to the saved audio file. */
+  localPath: string;
+  title: string;
+  artist: string;
+  /** Album title — may be empty for tracks without album metadata. */
+  album: string;
+  coverArt?: string;
+  /** Track duration in seconds. */
+  duration: number;
+  /** File size in bytes — used for on-screen storage usage display. */
+  fileSize: number;
+  /** Unix timestamp (ms) when the download completed. */
+  downloadedAt: number;
+};
+
+/**
+ * Ephemeral in-flight download state observed by UI components.
+ * Not persisted — reset to empty on cold start.
+ */
+export type ActiveDownload = {
+  trackId: string;
+  title: string;
+  /** Transfer progress in the range [0, 1]. */
+  progress: number;
+  status: DownloadStatus;
+};
+
+// ─── Module-level concurrency primitives ─────────────────────────────────────
+// Kept outside Zustand because they hold non-serialisable references and
+// must not trigger component re-renders on their own.
+
+interface PendingItem {
+  trackId: string;
+  track: SubsonicSong;
+}
+
+/** Ordered queue of downloads waiting for a free slot. */
+const _pending: PendingItem[] = [];
+
+/** Number of downloads currently running — must not exceed MAX_CONCURRENT. */
+let _activeCount = 0;
+
+// ─── Batch completion tracking ────────────────────────────────────────────────
+
+interface BatchWatcher {
+  pending: Set<string>;
+  onComplete: () => void;
+}
+const _batchWatchers: BatchWatcher[] = [];
+
+function _notifyBatch(trackId: string): void {
+  for (let i = _batchWatchers.length - 1; i >= 0; i--) {
+    _batchWatchers[i].pending.delete(trackId);
+    if (_batchWatchers[i].pending.size === 0) {
+      _batchWatchers[i].onComplete();
+      _batchWatchers.splice(i, 1);
+    }
+  }
+}
+
+// ─── Concurrency engine ───────────────────────────────────────────────────────
+
+/**
+ * Drains the pending queue by starting as many tasks as available slots allow.
+ * Called on every enqueue and on every task completion so the throughput stays
+ * at MAX_CONCURRENT until the queue is empty.
+ */
+function _drain(): void {
+  while (_activeCount < MAX_CONCURRENT && _pending.length > 0) {
+    const item = _pending.shift()!;
+    _activeCount++;
+    _executeDownload(item.trackId, item.track).finally(() => {
+      _activeCount--;
+      _drain();
+    });
+  }
+}
+
+/**
+ * Runs a single download to completion, writing the audio stream to disk.
+ * Transitions the Zustand `activeDownloads` entry through:
+ *   queued → downloading → (removed on success) | error
+ *
+ * @param trackId - Navidrome track ID; used as the local filename key.
+ * @param track   - Full SubsonicSong metadata stored on successful completion.
+ */
+async function _executeDownload(trackId: string, track: SubsonicSong): Promise<void> {
+  const store = useDownloadStore.getState;
+
+  try {
+    // Ensure the musonic downloads directory exists.
+    const dir = `${RNBlobUtil.fs.dirs.DocumentDir}/musonic`;
+    await RNBlobUtil.fs.mkdir(dir).catch(() => {
+      // Directory already exists — not an error.
+    });
+
+    const localPath = `${dir}/${trackId}.mp3`;
+
+    store()._setActive(trackId, track.title, 'downloading', 0);
+
+    const streamUrl = getStreamUrl(trackId);
+
+    // Fetch the audio stream and write it directly to `localPath`.
+    const res = await RNBlobUtil
+      .config({path: localPath, fileCache: false})
+      .fetch('GET', streamUrl)
+      .progress({interval: PROGRESS_INTERVAL_MS}, (received: number, total: number) => {
+        const pct = total > 0 ? Number(received) / Number(total) : 0;
+        store()._setProgress(trackId, pct);
+      });
+
+    const stat = await RNBlobUtil.fs.stat(res.path());
+
+    store()._markComplete(trackId, res.path(), track, Number(stat.size));
+    _notifyBatch(trackId);
+  } catch (err) {
+    // Network failure, disk full, or stream error — mark as error, do not crash.
+    store()._setActive(trackId, track.title, 'error', 0);
+    console.warn(`[DownloadStore] Failed to download track "${trackId}":`, err);
+    _notifyBatch(trackId);
+  }
+}
+
+// ─── Store ────────────────────────────────────────────────────────────────────
+
+type DownloadState = {
+  // ── Persisted via MMKV ────────────────────────────────────────────────────
+
+  /**
+   * Map of `trackId → DownloadedTrack` for every completed offline track.
+   * This is the only slice written to MMKV.
+   */
+  downloads: Record<string, DownloadedTrack>;
+
+  // ── Ephemeral (reset on cold start) ───────────────────────────────────────
+
+  /**
+   * Map of `trackId → ActiveDownload` for queued and in-progress transfers.
+   * Intentionally not persisted — a partial file left from a crash is ignored
+   * on the next download attempt (the file is overwritten).
+   */
+  activeDownloads: Record<string, ActiveDownload>;
+
+  // ── Public selectors ──────────────────────────────────────────────────────
+
+  /**
+   * Returns the absolute local file path for a completed download, or null.
+   * @param trackId - Navidrome track ID.
+   * @returns Absolute path string, or null if not downloaded.
+   */
+  getLocalPath: (trackId: string) => string | null;
+
+  /**
+   * Returns true if the track has been fully downloaded and is available offline.
+   * @param trackId - Navidrome track ID.
+   */
+  isDownloaded: (trackId: string) => boolean;
+
+  /**
+   * Returns true if the track is currently queued or actively downloading.
+   * @param trackId - Navidrome track ID.
+   */
+  isDownloading: (trackId: string) => boolean;
+
+  /**
+   * Returns the current download progress in [0, 1], or 0 if not active.
+   * @param trackId - Navidrome track ID.
+   */
+  getProgress: (trackId: string) => number;
+
+  /**
+   * Returns the total disk space used by all completed downloads in bytes.
+   */
+  getTotalSizeBytes: () => number;
+
+  // ── Public actions ────────────────────────────────────────────────────────
+
+  /**
+   * Adds a single track to the download queue.
+   * Silently ignores: Deezer-sourced tracks (ext- prefix), already-downloaded
+   * tracks, and tracks already in the active queue.
+   *
+   * @param track - SubsonicSong to enqueue.
+   */
+  enqueueTrack: (track: SubsonicSong) => void;
+
+  /**
+   * Convenience wrapper that calls `enqueueTrack` for each item in the array.
+   * Tracks that fail the eligibility check are silently skipped.
+   * When `onComplete` is provided, it fires once every enqueued track has
+   * either succeeded or errored (regardless of individual outcomes).
+   *
+   * @param tracks     - Array of SubsonicSong to enqueue.
+   * @param onComplete - Optional callback invoked when the full batch finishes.
+   */
+  enqueueBatch: (tracks: SubsonicSong[], onComplete?: () => void) => void;
+
+  /**
+   * Deletes the local audio file for a downloaded track and removes its
+   * metadata from the store. Safe to call even if the file is missing on disk.
+   *
+   * @param trackId - Navidrome track ID to delete.
+   */
+  deleteDownload: (trackId: string) => Promise<void>;
+
+  // ── Internal setters (invoked by _executeDownload) ────────────────────────
+
+  /** @internal Update or insert an entry in activeDownloads. */
+  _setActive: (id: string, title: string, status: DownloadStatus, progress: number) => void;
+  /** @internal Update progress for an existing activeDownload entry. */
+  _setProgress: (id: string, progress: number) => void;
+  /** @internal Move an entry from activeDownloads to downloads on success. */
+  _markComplete: (id: string, path: string, track: SubsonicSong, fileSize: number) => void;
+};
+
+export const useDownloadStore = create<DownloadState>()(
+  persist(
+    (set, get) => ({
+      downloads: {},
+      activeDownloads: {},
+
+      // ── Selectors ────────────────────────────────────────────────────────────
+
+      getLocalPath: (trackId) => get().downloads[trackId]?.localPath ?? null,
+
+      isDownloaded: (trackId) => trackId in get().downloads,
+
+      isDownloading: (trackId) => {
+        const active = get().activeDownloads[trackId];
+        return active != null &&
+          (active.status === 'queued' || active.status === 'downloading');
+      },
+
+      getProgress: (trackId) => get().activeDownloads[trackId]?.progress ?? 0,
+
+      getTotalSizeBytes: () =>
+        Object.values(get().downloads).reduce((acc, d) => acc + d.fileSize, 0),
+
+      // ── Actions ──────────────────────────────────────────────────────────────
+
+      enqueueTrack: (track) => {
+        const trackId = String(track.id);
+
+        // Deezer-sourced tracks cannot be fetched through Navidrome.
+        if (trackId.startsWith('ext-')) return;
+
+        const {downloads, activeDownloads} = get();
+
+        // Already finished — nothing to do.
+        if (trackId in downloads) return;
+
+        // Already queued or running — avoid duplicate.
+        const existing = activeDownloads[trackId];
+        if (existing && (existing.status === 'queued' || existing.status === 'downloading')) {
+          return;
+        }
+
+        set(s => ({
+          activeDownloads: {
+            ...s.activeDownloads,
+            [trackId]: {trackId, title: track.title, progress: 0, status: 'queued'},
+          },
+        }));
+
+        _pending.push({trackId, track});
+        _drain();
+      },
+
+      enqueueBatch: (tracks, onComplete) => {
+        if (tracks.length === 0) { onComplete?.(); return; }
+        if (onComplete) {
+          const {downloads, activeDownloads} = get();
+          // Only watch tracks that will actually be enqueued (mirrors enqueueTrack guards).
+          const pendingIds = tracks
+            .map(t => String(t.id))
+            .filter(id => {
+              if (id.startsWith('ext-')) return false;
+              if (id in downloads) return false;
+              const active = activeDownloads[id];
+              return !(active && (active.status === 'queued' || active.status === 'downloading'));
+            });
+          if (pendingIds.length === 0) { onComplete(); }
+          else { _batchWatchers.push({pending: new Set(pendingIds), onComplete}); }
+        }
+        const enqueue = get().enqueueTrack;
+        for (const t of tracks) { enqueue(t); }
+      },
+
+      deleteDownload: async (trackId) => {
+        const entry = get().downloads[trackId];
+        if (!entry) return;
+
+        try {
+          const exists = await RNBlobUtil.fs.exists(entry.localPath);
+          if (exists) {
+            await RNBlobUtil.fs.unlink(entry.localPath);
+          }
+        } catch (err) {
+          // Log but do not throw — the metadata removal below should still proceed.
+          console.warn(`[DownloadStore] Could not unlink file for "${trackId}":`, err);
+        }
+
+        set(s => {
+          const next = {...s.downloads};
+          delete next[trackId];
+          return {downloads: next};
+        });
+      },
+
+      // ── Internal setters ─────────────────────────────────────────────────────
+
+      _setActive: (id, title, status, progress) => {
+        set(s => ({
+          activeDownloads: {
+            ...s.activeDownloads,
+            [id]: {trackId: id, title, status, progress},
+          },
+        }));
+      },
+
+      _setProgress: (id, progress) => {
+        set(s => {
+          const current = s.activeDownloads[id];
+          if (!current) return s;
+          return {
+            activeDownloads: {
+              ...s.activeDownloads,
+              [id]: {...current, progress},
+            },
+          };
+        });
+      },
+
+      _markComplete: (id, path, track, fileSize) => {
+        set(s => {
+          const nextActive = {...s.activeDownloads};
+          delete nextActive[id];
+          return {
+            downloads: {
+              ...s.downloads,
+              [id]: {
+                trackId: id,
+                localPath: path,
+                title: track.title,
+                artist: track.artist,
+                album: track.album ?? '',
+                coverArt: track.coverArt,
+                duration: track.duration ?? 0,
+                fileSize,
+                downloadedAt: Date.now(),
+              },
+            },
+            activeDownloads: nextActive,
+          };
+        });
+      },
+    }),
+    {
+      name: 'musonic-downloads',
+      storage: createJSONStorage(() => mmkvStorage),
+      // Only persist completed downloads. In-progress state is ephemeral —
+      // partially-downloaded files are safely overwritten on the next attempt.
+      partialize: (state) => ({downloads: state.downloads}),
+    },
+  ),
+);
