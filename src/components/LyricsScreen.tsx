@@ -4,7 +4,7 @@
  *   Active line animates (scale + opacity). User can scroll freely; auto-recentering
  *   resumes only after the user stops scrolling. Opened from FullScreenPlayer.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.1
  * @license CC-BY-NC-4.0
  */
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
@@ -18,7 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Path} from 'react-native-svg';
 import ChevronDownIcon from './icons/ChevronDownIcon';
 import PrevIcon from './icons/PrevIcon';
@@ -132,6 +132,7 @@ type Props = {
 
 export default function LyricsScreen({visible, onClose, lyrics, coverArtId}: Props) {
   const t = useT();
+  const insets = useSafeAreaInsets();
   const currentTrack = useActiveTrack();
   const {state} = usePlaybackState();
   const isPlaying = state === State.Playing;
@@ -238,7 +239,7 @@ export default function LyricsScreen({visible, onClose, lyrics, coverArtId}: Pro
         <View style={[StyleSheet.absoluteFill, styles.ambientOverlay2]} />
       </View>
 
-      <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.root} edges={['top']}>
 
         {/* ── Header ── */}
         <View style={styles.header}>
@@ -289,7 +290,7 @@ export default function LyricsScreen({visible, onClose, lyrics, coverArtId}: Pro
         )}
 
         {/* ── Bottom Controls ── */}
-        <View style={styles.bottomBar}>
+        <View style={[styles.bottomBar, {paddingBottom: insets.bottom + 4}]}>
           <Slider
             style={styles.slider}
             minimumValue={0}
@@ -406,7 +407,6 @@ const styles = StyleSheet.create({
   // Bottom bar
   bottomBar: {
     paddingHorizontal: 20,
-    paddingBottom: 4,
   },
   slider: {
     width: '100%',
