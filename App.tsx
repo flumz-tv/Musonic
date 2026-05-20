@@ -4,11 +4,11 @@
  *   global providers (SafeArea, GestureHandler), the audio player setup, and
  *   app-wide overlays (OfflineBanner, LikeRetryManager).
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.1
  * @license MIT
  */
 
-import React from 'react';
+import React, {useEffect} from 'react';
 import {StatusBar, StyleSheet, View} from 'react-native';
 import {NavigationContainer} from '@react-navigation/native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
@@ -19,9 +19,15 @@ import {useSetupPlayer} from './src/hooks/useSetupPlayer';
 import OfflineBanner from './src/components/OfflineBanner';
 import LikeRetryManager from './src/components/LikeRetryManager';
 import PlaylistCacheManager from './src/components/PlaylistCacheManager';
+import {checkForUpdateSilent} from './src/services/updateChecker';
 
 export default function App() {
   useSetupPlayer();
+
+  useEffect(() => {
+    const timer = setTimeout(() => { checkForUpdateSilent(); }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
