@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.1] - 2026-05-20
+
+### Fixed
+- **Like/playlist on ext- tracks** — liking or adding a Deezer track to a playlist no longer fails with "not available locally". OctoFiesta import (`stream.view`) is triggered first, then Navidrome is polled up to 75 s for the native ID before starring or adding.
+- **Re-like fast path** — navidromeId is now cached in `localImportedIds` after the first successful import; subsequent unlike/re-like operations skip the full import cycle and respond immediately. Stale cache entries are evicted on star failure and fall through to a full import.
+- **FSP toast visibility** — "Added to Liked" toast now appears inside the Full-Screen Player modal via a reactive `useEffect` on the `pendingLikeToast` Zustand selector, replacing an unreliable `setTimeout` approach.
+- **Toast elevation** — local `Toast` component was missing `elevation: 99` on Android, causing it to render behind elevated FSP elements. Now matches `GlobalToast`.
+- **PlaylistDetail like** — `handleToggleLike` in `SongRow` now reads `pendingLikeToast` after `toggleLike` resolves and shows the correct feedback message for ext- tracks.
+- **Playlist instant refresh** — after adding a recommendation track the song list is updated immediately without requiring a manual refresh.
+- **Recommendation pool** — reco pool expanded to 30 tracks (fetching 15 per artist); always shows 10 tracks, replacing added entries with the next track from the pool automatically. Added tracks are excluded from the pool via title+artist deduplication.
+- **PlusCircleIcon design** — icon resized from 24×24 to 26×26 with strokeWidth matching MiniPlayer/FSP inline SVG style for visual consistency.
+
+---
+
 ## [1.0.0] - 2026-05-12
 
 ### Added

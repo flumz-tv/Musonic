@@ -2,7 +2,7 @@
 
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 [![React Native](https://img.shields.io/badge/React%20Native-0.85-61DAFB?logo=react)](https://reactnative.dev)
-[![Version](https://img.shields.io/badge/version-1.0.0-orange)](https://github.com/DoodzProg/Musonic/releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-orange)](https://github.com/DoodzProg/Musonic/releases)
 
 A Spotify-inspired mobile client for Navidrome and Subsonic-compatible servers, built with React Native (New Architecture). Own your music. Own your experience.
 

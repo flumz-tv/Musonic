@@ -165,6 +165,9 @@ export default function FullScreenPlayer() {
   const cycleRepeat = usePlayerStore(s => s.cycleRepeat);
   const closeFullScreen = usePlayerStore(s => s.closeFullScreen);
   const toggleLike = usePlayerStore(s => s.toggleLike);
+  const pendingLikes = usePlayerStore(s => s.pendingLikes);
+  const storePendingLikeToast = usePlayerStore(s => s.pendingLikeToast);
+  const setPendingLikeToast = usePlayerStore(s => s.setPendingLikeToast);
 
   const fspTrackId = currentTrack?.id ? String(currentTrack.id) : '';
   const currentTrackAsSong = useMemo<SubsonicSong | null>(() => {
@@ -222,15 +225,32 @@ export default function FullScreenPlayer() {
     toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
   }, []);
 
-  const handleToggleLike = useCallback(() => {
+  // Reactively show ext- like toasts: store sets pendingLikeToast at each step
+  // (sendingToServer → stillImporting → addedToLikedNamed / sendError / removedFromLiked).
+  // useEffect is the only reliable way to show these inside the Modal after a long async.
+  useEffect(() => {
+    if (!storePendingLikeToast) return;
+    showToast(storePendingLikeToast);
+    setPendingLikeToast(null);
+  }, [storePendingLikeToast, showToast, setPendingLikeToast]);
+
+  const handleToggleLike = useCallback(async () => {
     if (!fspTrackId) return;
     const wasLiked = localLikeOverrides[fspTrackId] ?? likedSongIds.has(fspTrackId);
-    toggleLike(fspTrackId).then(success => {
-      if (success) {
+    const isExt = fspTrackId.startsWith('ext-');
+    // For ext- imports, "Sending…" is shown here AND by the useEffect above (same message, no-op duplication).
+    // Unlike and all final results are handled exclusively by the useEffect.
+    if (isExt && !wasLiked) showToast(getT().likes.sendingToServer);
+    await toggleLike(fspTrackId, currentTrack?.title, currentTrack?.artist);
+    if (!isExt) {
+      const pending = usePlayerStore.getState().pendingLikeToast;
+      if (pending) {
+        showToast(pending);
+        usePlayerStore.getState().setPendingLikeToast(null);
+      } else {
         showToast(wasLiked ? getT().likes.removedFromLiked : getT().likes.addedToLiked);
       }
-      // false = pending retry, LikeRetryManager handles the toast
-    });
+    }
   }, [fspTrackId, localLikeOverrides, likedSongIds, toggleLike, showToast]);
 
   const handleDownloadPress = useCallback(() => {
@@ -480,12 +500,10 @@ export default function FullScreenPlayer() {
                   )}
                 </Svg>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleToggleLike} hitSlop={HIT}>
-                <HeartIcon
-                  size={26}
-                  color={isLiked ? '#E8553E' : 'rgba(255,255,255,0.6)'}
-                  filled={isLiked}
-                />
+              <TouchableOpacity onPress={handleToggleLike} hitSlop={HIT} disabled={pendingLikes.has(fspTrackId)}>
+                {pendingLikes.has(fspTrackId)
+                  ? <ActivityIndicator size="small" color="rgba(255,255,255,0.6)" style={{width: 26, height: 26}} />
+                  : <HeartIcon size={26} color={isLiked ? '#E8553E' : 'rgba(255,255,255,0.6)'} filled={isLiked} />}
               </TouchableOpacity>
             </View>
           </View>

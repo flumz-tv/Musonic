@@ -11,7 +11,7 @@ import {Alert, Linking} from 'react-native';
 import {getT} from '../i18n';
 import {isNewerVersion} from '../utils/semver';
 
-const LOCAL_VERSION = '1.0.0';
+const LOCAL_VERSION = '1.0.1';
 const GITHUB_API = 'https://api.github.com/repos/DoodzProg/Musonic/releases/latest';
 const FETCH_TIMEOUT_MS = 8000;
 

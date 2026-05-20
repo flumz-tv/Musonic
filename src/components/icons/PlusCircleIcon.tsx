@@ -10,12 +10,17 @@ import Svg, {Circle, Path} from 'react-native-svg';
 
 type Props = {size?: number; color?: string};
 
-export default function PlusCircleIcon({size = 24, color = '#fff'}: Props) {
+export default function PlusCircleIcon({size = 26, color = '#fff'}: Props) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Circle cx={12} cy={12} r={10} stroke={color} strokeWidth={2} fill="none" />
-      <Path d="M8 12h8" stroke={color} strokeWidth={2} strokeLinecap="round" />
-      <Path d="M12 8v8" stroke={color} strokeWidth={2} strokeLinecap="round" />
+    <Svg width={size} height={size} viewBox="0 0 26 26">
+      <Circle cx={13} cy={13} r={11.5} stroke={color} strokeWidth={1.5} fill="none" />
+      <Path
+        d="M13 8 L13 18 M8 13 L18 13"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        fill="none"
+      />
     </Svg>
   );
 }

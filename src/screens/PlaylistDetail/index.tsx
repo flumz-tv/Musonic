@@ -32,7 +32,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import ImageColors from 'react-native-image-colors';
 import {darkTheme} from '../../theme';
 import CoverArt from '../../components/CoverArt';
-import {getPlaylist, replacePlaylist} from '../../api/endpoints/playlists';
+import {getPlaylist, replacePlaylist, updatePlaylist} from '../../api/endpoints/playlists';
 import {
   getDeezerArtistId,
   getDeezerArtistTopTracks,
@@ -46,7 +46,7 @@ import {usePlayerStore} from '../../store/playerStore';
 import {colorFromId} from '../../utils/colorUtils';
 import type {SubsonicSong} from '../../api/types';
 import type {LibraryStackParams} from '../../navigation/types';
-import {getCoverArtUrl, getStreamUrl} from '../../api/client';
+import {getCoverArtUrl, getStreamUrl, subsonicGet} from '../../api/client';
 import type {Track, ShuffleMode} from '../../store/playerStore';
 import DraggableFlatList, {ScaleDecorator} from 'react-native-draggable-flatlist';
 import type {RenderItemParams} from 'react-native-draggable-flatlist';
@@ -292,11 +292,26 @@ function SongRow({song, isActive, onPress, onMorePress, onDownloadPress}: SongRo
   const trackId = String(song.id);
   const likedSongIds = usePlayerStore(s => s.likedSongIds);
   const localLikeOverrides = usePlayerStore(s => s.localLikeOverrides);
+  const pendingLikes = usePlayerStore(s => s.pendingLikes);
   const toggleLike = usePlayerStore(s => s.toggleLike);
   const isDownloaded = useDownloadStore(s => trackId in s.downloads);
   const isLiked = localLikeOverrides[trackId] !== undefined
     ? localLikeOverrides[trackId]
     : likedSongIds.has(trackId);
+
+  const handleToggleLike = useCallback(async () => {
+    const wasLiked = localLikeOverrides[trackId] !== undefined
+      ? localLikeOverrides[trackId]
+      : likedSongIds.has(trackId);
+    await toggleLike(trackId, song.title, song.artist);
+    const pending = usePlayerStore.getState().pendingLikeToast;
+    if (pending) {
+      showToast(pending);
+      usePlayerStore.getState().setPendingLikeToast(null);
+    } else {
+      showToast(wasLiked ? getT().likes.removedFromLiked : getT().likes.addedToLiked);
+    }
+  }, [trackId, localLikeOverrides, likedSongIds, toggleLike, song.title, song.artist]);
 
   const handleDownloadPress = () => {
     if (isDownloaded) {
@@ -336,8 +351,11 @@ function SongRow({song, isActive, onPress, onMorePress, onDownloadPress}: SongRo
       </View>
       <TouchableOpacity
         hitSlop={{top: 10, bottom: 10, left: 8, right: 6}}
-        onPress={() => toggleLike(trackId)}>
-        <HeartIcon size={18} color={isLiked ? '#E8553E' : '#444'} filled={isLiked} />
+        onPress={handleToggleLike}
+        disabled={pendingLikes.has(trackId)}>
+        {pendingLikes.has(trackId)
+          ? <ActivityIndicator size="small" color="#E8553E" style={{width: 18, height: 18}} />
+          : <HeartIcon size={18} color={isLiked ? '#E8553E' : '#444'} filled={isLiked} />}
       </TouchableOpacity>
       <TouchableOpacity
         hitSlop={{top: 10, bottom: 10, left: 6, right: 4}}
@@ -789,11 +807,11 @@ export default function PlaylistDetailScreen() {
       try {
         const ids = await Promise.all(artistNames.map(n => getDeezerArtistId(n).catch(() => null)));
         const rawArrays = await Promise.all(
-          ids.map(id => (id ? getDeezerArtistTopTracks(id, 8).catch(() => []) : Promise.resolve([]))),
+          ids.map(id => (id ? getDeezerArtistTopTracks(id, 15).catch(() => []) : Promise.resolve([]))),
         );
         const flat = dedupeById(rawArrays.flat()).slice(0, 30);
         const enriched = await enrichTracksWithAlbumType(flat);
-        const deduped = dedupeByArtistMax3(enriched).slice(0, 10);
+        const deduped = enriched.slice(0, 30);
         if (!cancelled) setRecoTracks(deduped);
       } catch {}
       finally { if (!cancelled) setRecoLoading(false); }
@@ -860,6 +878,12 @@ export default function PlaylistDetailScreen() {
     [songs],
   );
 
+  const filteredRecoTracks = useMemo(() => {
+    if (!recoTracks.length) return recoTracks;
+    const songKeys = new Set(songs.map(s => `${s.title}|||${s.artist}`));
+    return recoTracks.filter(t => !songKeys.has(`${t.title}|||${t.artist.name}`)).slice(0, 10);
+  }, [recoTracks, songs]);
+
   const offlineSuggestions = useMemo<DownloadedTrack[]>(() => {
     if (!isOfflineMode) return [];
     const songIdSet = new Set(songs.map(s => String(s.id)));
@@ -921,9 +945,56 @@ export default function PlaylistDetailScreen() {
     loadAndPlayTracks([deezerTrackToInternalTrack(track)], 0);
   }, []);
 
-  const handleAddRec = useCallback((_track: DeezerTrack) => {
-    showToast(getT().playlistDetail.recommendations.notOnServer);
-  }, []);
+  const handleAddRec = useCallback(async (track: DeezerTrack) => {
+    const extId = `ext-deezer-song-${track.id}`;
+    const title = track.title;
+    const artist = track.artist.name;
+    showToast(getT().likes.sendingToServer);
+
+    fetch(getStreamUrl(extId), {headers: {Range: 'bytes=0-8192'}})
+      .then(res => res.arrayBuffer())
+      .catch(() => {});
+
+    let navidromeId: string | null = null;
+    for (let attempt = 0; attempt < 25; attempt++) {
+      await new Promise<void>(r => setTimeout(r, 3000));
+      if (attempt === 10) showToast(getT().likes.stillImporting);
+      try {
+        const res = await subsonicGet<any>('search3.view', {
+          query: title,
+          songCount: 10,
+          albumCount: 0,
+          artistCount: 0,
+        });
+        const songs: any[] = res.searchResult3?.song ?? [];
+        const match = songs.find(
+          s => !String(s.id).startsWith('ext-') && s.title === title && s.artist === artist,
+        );
+        if (match) { navidromeId = String(match.id); break; }
+      } catch { /* keep polling */ }
+    }
+
+    if (!navidromeId) {
+      showToast(getT().likes.sendError);
+      return;
+    }
+
+    try {
+      await updatePlaylist(playlistId, undefined, [navidromeId]);
+      const newSong: SubsonicSong = {
+        id: navidromeId,
+        title,
+        artist,
+        album: track.album.title,
+        duration: track.duration,
+        coverArt: navidromeId,
+      };
+      setSongs(prev => [...prev, newSong]);
+      showToast(getT().addToPlaylist.addedTo(title, playlistName));
+    } catch {
+      showToast(getT().addToPlaylist.unavailableTrack);
+    }
+  }, [playlistId, playlistName]);
 
   const handleNavigateAlbum = useCallback((albumId: string) => {
     navigation.navigate('AlbumDetail', {albumId});
@@ -1141,7 +1212,7 @@ export default function PlaylistDetailScreen() {
               />
             ) : (
               <PlaylistFooter
-                recoTracks={recoTracks}
+                recoTracks={filteredRecoTracks}
                 recoLoading={recoLoading}
                 onPressRec={handlePressRec}
                 onAddRec={handleAddRec}
@@ -1217,6 +1288,7 @@ export default function PlaylistDetailScreen() {
         trackIds={songs.map(s => String(s.id))}
         onToast={showToast}
       />
+
 
       <PlaylistInfoModal
         visible={infoModalVisible}

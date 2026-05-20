@@ -90,6 +90,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 24,
     zIndex: 9999,
+    elevation: 99,
   },
   globalToast: {
     position: 'absolute',

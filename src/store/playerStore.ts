@@ -11,7 +11,7 @@
 import {create} from 'zustand';
 import TrackPlayer, {RepeatMode, State} from 'react-native-track-player';
 import {star, unstar, getRandomSongs, getSimilarSongs} from '../api/endpoints/library';
-import {SubsonicError, getStreamUrl, getCoverArtUrl} from '../api/client';
+import {SubsonicError, getStreamUrl, getCoverArtUrl, subsonicGet} from '../api/client';
 import {getDeezerArtistId, getDeezerArtistTopTracks, type DeezerTrack} from '../api/deezer';
 import {getT} from '../i18n';
 
@@ -61,6 +61,7 @@ type PlayerState = {
   lastPlayedPlaylists: Record<string, number>;
   playlistVersion: number;
   isFetchingMagic: boolean;
+  localImportedIds: Record<string, string>;
 
   setQueue: (tracks: Track[]) => void;
   setHistory: (history: Track[]) => void;
@@ -78,11 +79,14 @@ type PlayerState = {
   closeFullScreen: () => void;
   pendingLikeRetries: Set<string>;
   pendingLikeToast: string | null;
+  pendingLikes: Set<string>;
   addPendingLikeRetry: (id: string) => void;
   removePendingLikeRetry: (id: string) => void;
   revertLikeOverride: (id: string) => void;
   setPendingLikeToast: (msg: string | null) => void;
-  toggleLike: (trackId: string) => Promise<boolean>;
+  addPendingLike: (id: string) => void;
+  removePendingLike: (id: string) => void;
+  toggleLike: (trackId: string, trackTitle?: string, trackArtist?: string) => Promise<boolean>;
   setLikedSongs: (ids: string[]) => void;
   setPlaylistSong: (id: string, inPlaylist: boolean) => void;
   setCurrentPlaylist: (id: string | null, name: string | null) => void;
@@ -118,12 +122,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   localLikeOverrides: {} as Record<string, boolean>,
   pendingLikeRetries: new Set<string>(),
   pendingLikeToast: null,
+  pendingLikes: new Set<string>(),
   playlistSongIds: new Set<string>(),
   currentPlaylistId: null,
   currentPlaylistName: null,
   lastPlayedPlaylists: {},
   playlistVersion: 0,
   isFetchingMagic: false,
+  localImportedIds: {} as Record<string, string>,
 
   setQueue: tracks => set({queue: tracks}),
   setHistory: history => set({history}),
@@ -349,31 +355,163 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   setPendingLikeToast: msg => set({pendingLikeToast: msg}),
 
-  toggleLike: (trackId: string): Promise<boolean> => {
+  addPendingLike: id =>
+    set(s => ({pendingLikes: new Set([...s.pendingLikes, id])})),
+
+  removePendingLike: id =>
+    set(s => {
+      const next = new Set(s.pendingLikes);
+      next.delete(id);
+      return {pendingLikes: next};
+    }),
+
+  toggleLike: async (trackId: string, trackTitle?: string, trackArtist?: string): Promise<boolean> => {
+    const t = getT().likes;
+
     if (trackId.startsWith('ext-')) {
-      set({pendingLikeToast: getT().likes.unavailableTrack});
-      return Promise.resolve(false);
+      const {likedSongIds: lids, localLikeOverrides: overrides} = get();
+      const currentLiked = overrides[trackId] ?? lids.has(trackId);
+
+      if (currentLiked) {
+        // Unstar via navidromeId (cached or freshly looked up via search3)
+        set(s => ({pendingLikes: new Set([...s.pendingLikes, trackId])}));
+        try {
+          let navidromeId: string | undefined = get().localImportedIds[trackId];
+          if (!navidromeId) {
+            const res = await subsonicGet<any>('search3.view', {
+              query: trackTitle ?? '',
+              songCount: 10,
+              albumCount: 0,
+              artistCount: 0,
+            });
+            const songs: any[] = res.searchResult3?.song ?? [];
+            const match = songs.find(s => {
+              const id = String(s.id);
+              return !id.startsWith('ext-') && s.title === trackTitle && (!trackArtist || s.artist === trackArtist);
+            });
+            if (match) navidromeId = String(match.id);
+          }
+          if (navidromeId) await unstar(navidromeId);
+        } catch { /* best effort */ }
+        set(s => {
+          const next = new Set(s.pendingLikes);
+          next.delete(trackId);
+          const nextOverrides = {...s.localLikeOverrides};
+          delete nextOverrides[trackId];
+          return {pendingLikes: next, localLikeOverrides: nextOverrides, pendingLikeToast: t.removedFromLiked};
+        });
+        return true;
+      }
+
+      // Fast path: track was previously imported this session — skip full poll cycle
+      const cachedNavidromeId = get().localImportedIds[trackId];
+      if (cachedNavidromeId) {
+        set(s => ({
+          pendingLikes: new Set([...s.pendingLikes, trackId]),
+          localLikeOverrides: {...s.localLikeOverrides, [trackId]: true},
+        }));
+        try {
+          await star(cachedNavidromeId);
+          set(s => {
+            const next = new Set(s.pendingLikes);
+            next.delete(trackId);
+            return {pendingLikes: next, pendingLikeToast: t.addedToLikedNamed(trackTitle ?? '')};
+          });
+          return true;
+        } catch {
+          // Stale cache — evict and fall through to full import
+          set(s => {
+            const next = new Set(s.pendingLikes);
+            next.delete(trackId);
+            const nextImported = {...s.localImportedIds};
+            delete nextImported[trackId];
+            return {pendingLikes: next, localImportedIds: nextImported};
+          });
+        }
+      }
+
+      set(s => ({
+        localLikeOverrides: {...s.localLikeOverrides, [trackId]: true},
+        pendingLikes: new Set([...s.pendingLikes, trackId]),
+        pendingLikeToast: t.sendingToServer,
+      }));
+
+      // Keep connection alive so OctoFiesta downloads the full track before responding
+      fetch(getStreamUrl(trackId), {headers: {Range: 'bytes=0-8192'}})
+        .then(res => res.arrayBuffer())
+        .catch(() => {});
+
+      // Poll search3.view every 3s for up to 75s (covers download + 30s Navidrome scan debounce)
+      let navidromeId: string | null = null;
+      for (let attempt = 0; attempt < 25; attempt++) {
+        await new Promise<void>(r => setTimeout(r, 3000));
+        if (attempt === 10) {
+          set({pendingLikeToast: t.stillImporting});
+        }
+        try {
+          const res = await subsonicGet<any>('search3.view', {
+            query: trackTitle ?? '',
+            songCount: 10,
+            albumCount: 0,
+            artistCount: 0,
+          });
+          const songs: any[] = res.searchResult3?.song ?? [];
+          const match = songs.find(s => {
+            const id = String(s.id);
+            const titleMatch = s.title === trackTitle;
+            const artistMatch = !trackArtist || s.artist === trackArtist;
+            return !id.startsWith('ext-') && titleMatch && artistMatch;
+          });
+          if (match) { navidromeId = String(match.id); break; }
+        } catch { /* keep polling */ }
+      }
+
+      // Remove from spinner set regardless of outcome
+      set(s => {
+        const next = new Set(s.pendingLikes);
+        next.delete(trackId);
+        return {pendingLikes: next};
+      });
+
+      if (navidromeId) {
+        const nid = navidromeId;
+        set(s => ({localImportedIds: {...s.localImportedIds, [trackId]: nid}}));
+        try {
+          await star(nid);
+          set({pendingLikeToast: t.addedToLikedNamed(trackTitle ?? '')});
+          return true;
+        } catch { /* star with native ID failed */ }
+      }
+
+      set(s => {
+        const next = {...s.localLikeOverrides};
+        delete next[trackId];
+        return {localLikeOverrides: next, pendingLikeToast: t.sendError};
+      });
+      return false;
     }
+
+    // Navidrome track flow
     const {likedSongIds, localLikeOverrides} = get();
     const currentLiked = localLikeOverrides[trackId] ?? likedSongIds.has(trackId);
     const newLiked = !currentLiked;
     set({localLikeOverrides: {...localLikeOverrides, [trackId]: newLiked}});
-    return (newLiked ? star : unstar)(trackId)
-      .then(() => true as boolean)
-      .catch((err: unknown) => {
-        if (err instanceof SubsonicError && err.isPermanent) {
-          // Permanent server-side error — revert immediately, never retry
-          set(s => {
-            const next = {...s.localLikeOverrides};
-            delete next[trackId];
-            return {localLikeOverrides: next, pendingLikeToast: getT().likes.unavailableTrack};
-          });
-        } else {
-          // Transient error — keep optimistic override, retry when track plays
-          set(s => ({pendingLikeRetries: new Set([...s.pendingLikeRetries, trackId])}));
-        }
-        return false as boolean;
-      });
+    try {
+      await (newLiked ? star : unstar)(trackId);
+      return true;
+    } catch (err: unknown) {
+      if (err instanceof SubsonicError && err.isPermanent) {
+        set(s => {
+          const next = {...s.localLikeOverrides};
+          delete next[trackId];
+          return {localLikeOverrides: next, pendingLikeToast: t.unavailableTrack};
+        });
+      } else {
+        // Transient error — keep optimistic override, retry when track plays
+        set(s => ({pendingLikeRetries: new Set([...s.pendingLikeRetries, trackId])}));
+      }
+      return false;
+    }
   },
 
   setLikedSongs: (ids: string[]) => set({likedSongIds: new Set(ids)}),
