@@ -4,7 +4,7 @@
  *   styles. Follows a mobile-first responsive approach. All colours reference
  *   CSS custom properties so theming is centralised.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.1
  * @license CC-BY-NC-4.0
  */
 
@@ -68,6 +68,11 @@ html {
   scroll-behavior: smooth;
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar {
+  display: none;
 }
 
 body {
@@ -160,6 +165,7 @@ ul {
   align-items: center;
   gap: var(--space-1);
 }
+
 
 .nav__logo {
   width: 32px;
@@ -732,6 +738,30 @@ ul {
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
+  cursor: pointer;
+}
+
+.scr-frame.scr-frame--wide img {
+  width: 300px;
+  height: auto;
+  min-height: 0;
+  border-radius: 16px;
+}
+
+.scr-col {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+}
+
+.scr-frame.scr-frame--horiz img {
+  width: 240px;
+  height: auto;
+  min-height: 0;
+  border-radius: 12px;
 }
 
 .scr-frame img {
@@ -906,4 +936,136 @@ ul {
 
 .footer__link:hover {
   color: var(--color-text-primary);
+}
+
+/* ─── Lightbox ─────────────────────────────────────────────────────────────── */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.93);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.lightbox[hidden] {
+  display: none;
+}
+
+.lightbox.lb-visible {
+  opacity: 1;
+}
+
+.lightbox__close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background var(--transition-fast);
+}
+
+.lightbox__close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.lightbox__nav {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 30px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+  margin-inline: var(--space-2);
+}
+
+.lightbox__nav:hover {
+  background: rgba(255, 255, 255, 0.16);
+  transform: scale(1.08);
+}
+
+.lightbox__nav:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lightbox__img-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.lightbox__img {
+  max-height: 82vh;
+  max-width: min(480px, 90vw);
+  width: auto;
+  border-radius: 20px;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8);
+  object-fit: contain;
+}
+
+.lightbox__caption {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.4px;
+}
+
+/* ─── doodz.dev corner link ───────────────────────────────────────────────── */
+
+.doodz-corner {
+  position: fixed;
+  top: 14px;
+  left: 16px;
+  z-index: 150;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.18);
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.doodz-corner:hover {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ─── Scroll Progress Bar ──────────────────────────────────────────────────── */
+
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0%;
+  height: 3px;
+  background: var(--color-accent);
+  box-shadow: 0 0 10px var(--color-accent-glow-strong);
+  z-index: 999;
+  pointer-events: none;
+  transition: none;
 }

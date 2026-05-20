@@ -11,11 +11,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description"
-        content="Musonic — A self-hosted music client for Navidrome &amp; Subsonic.
-                 Spotify-inspired UI, synced lyrics, and ambient artwork visuals." />
+        content="Open-source music player for Navidrome and Subsonic. Synced lyrics, ambient art, offline support." />
   <meta property="og:type"        content="website" />
   <meta property="og:url"         content="https://doodzprog.github.io/Musonic/" />
-  <meta property="og:title"       content="Musonic — Self-hosted music, beautifully played." />
+  <meta property="og:title"       content="Musonic" />
   <meta property="og:description" content="A Navidrome &amp; Subsonic client with synced lyrics, ambient art, and full offline support." />
   <meta property="og:image"       content="assets/img/screenshots/player_waveform_downloaded.jpg" />
   <meta name="twitter:card"        content="summary_large_image" />
@@ -28,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/style.css" />
-  <title>Musonic — Self-hosted music, beautifully played.</title>
+  <title>Musonic</title>
 </head>
 
 <body>
@@ -223,9 +222,11 @@
                 <figure class="scr-frame"><img src="assets/img/screenshots/player_waveform_downloaded.jpg" alt="Player waves mode"    loading="lazy" /><figcaption data-i18n="scr.cap.player_waves">Player · Waves</figcaption></figure>
                 <figure class="scr-frame"><img src="assets/img/screenshots/player_classic.jpg"             alt="Player classic mode"  loading="lazy" /><figcaption data-i18n="scr.cap.player_classic">Player · Classic</figcaption></figure>
                 <figure class="scr-frame"><img src="assets/img/screenshots/lyrics.jpg"                     alt="Synced lyrics"        loading="lazy" /><figcaption data-i18n="scr.cap.lyrics">Synced Lyrics</figcaption></figure>
-                <figure class="scr-frame"><img src="assets/img/screenshots/mini_player.jpg"                alt="Mini player"          loading="lazy" /><figcaption data-i18n="scr.cap.mini_player">Mini Player</figcaption></figure>
                 <figure class="scr-frame"><img src="assets/img/screenshots/lock_screen_player.jpg"         alt="Lock screen controls" loading="lazy" /><figcaption data-i18n="scr.cap.lock_screen">Lock Screen</figcaption></figure>
-                <figure class="scr-frame"><img src="assets/img/screenshots/media_notification.jpg"         alt="Media notification"   loading="lazy" /><figcaption data-i18n="scr.cap.media_notif">Media Notification</figcaption></figure>
+                <div class="scr-col">
+                  <figure class="scr-frame scr-frame--horiz"><img src="assets/img/screenshots/media_notification.jpg" alt="Media notification" loading="lazy" /><figcaption data-i18n="scr.cap.media_notif">Media Notification</figcaption></figure>
+                  <figure class="scr-frame scr-frame--horiz"><img src="assets/img/screenshots/mini_player.jpg"        alt="Mini player"        loading="lazy" /><figcaption data-i18n="scr.cap.mini_player">Mini Player</figcaption></figure>
+                </div>
               </div>
             </div>
           </div>
@@ -379,6 +380,20 @@
     <span class="made-by__sep">·</span>
     <span>doodz.dev</span>
   </a>
+
+  <!-- ── Lightbox ──────────────────────────────────────────────────────────────── -->
+  <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot viewer" hidden>
+    <button class="lightbox__close" id="lb-close" aria-label="Close">✕</button>
+    <button class="lightbox__nav" id="lb-prev" aria-label="Previous">‹</button>
+    <div class="lightbox__img-wrap">
+      <img id="lb-img" src="" alt="" class="lightbox__img" />
+      <p id="lb-caption" class="lightbox__caption"></p>
+    </div>
+    <button class="lightbox__nav" id="lb-next" aria-label="Next">›</button>
+  </div>
+
+  <div class="scroll-progress" aria-hidden="true"></div>
+  <a href="https://doodz.dev/" class="doodz-corner" target="_blank" rel="noopener noreferrer">doodz.dev</a>
 
   <script>document.getElementById('footer-year').textContent = new Date().getFullYear();</script>
   <script src="assets/js/main.js" defer></script>
