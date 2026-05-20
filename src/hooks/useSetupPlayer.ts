@@ -4,14 +4,17 @@
  *   calls setupPlayer, configures capabilities (play, pause, skip, seek, like),
  *   and registers notification/lock-screen options.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 import {useEffect, useRef} from 'react';
 import TrackPlayer, {
   AppKilledPlaybackBehavior,
   Capability,
+  RepeatMode,
 } from 'react-native-track-player';
+import {useSettingsStore} from '../store/settingsStore';
+import {usePlayerStore} from '../store/playerStore';
 
 export function useSetupPlayer() {
   const initialized = useRef(false);
@@ -42,6 +45,16 @@ export function useSetupPlayer() {
           ],
           progressUpdateEventInterval: 0.5,
         });
+      })
+      .then(() => {
+        const {shuffleMode, repeatMode} = useSettingsStore.getState();
+        usePlayerStore.getState().setShuffleMode(shuffleMode);
+        usePlayerStore.setState({repeatMode});
+        const rnRepeat =
+          repeatMode === 'all' ? RepeatMode.Queue :
+          repeatMode === 'one' ? RepeatMode.Track :
+          RepeatMode.Off;
+        TrackPlayer.setRepeatMode(rnRepeat).catch(() => {});
       })
       .catch(e => console.log('[TrackPlayer] setup:', e));
   }, []);

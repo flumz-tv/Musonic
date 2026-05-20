@@ -4,7 +4,7 @@
  *   liked songs in list or grid view with sort options, pin support, pull-to-refresh,
  *   and auto-recovery on connectivity restore.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license MIT
  */
 
@@ -46,7 +46,7 @@ import {useDrawer} from '../../components/DrawerContainer';
 import HeartIcon from '../../components/icons/HeartIcon';
 import {useT, getT} from '../../i18n';
 import {useNetworkStore} from '../../store/networkStore';
-import {useSettingsStore} from '../../store/settingsStore';
+import {useSettingsStore, type LibrarySortMode} from '../../store/settingsStore';
 import {usePlaylistCacheStore} from '../../store/playlistCacheStore';
 import {useDownloadStore} from '../../store/downloadStore';
 import DownloadIcon from '../../components/icons/DownloadIcon';
@@ -54,7 +54,7 @@ import DownloadIcon from '../../components/icons/DownloadIcon';
 const {width: SCREEN_W} = Dimensions.get('window');
 
 type ViewMode = 'list' | 'grid';
-type SortMode = 'recent' | 'added' | 'alpha' | 'custom';
+type SortMode = LibrarySortMode;
 
 type LibraryItem = {
   id: string;
@@ -535,7 +535,8 @@ export default function LibraryScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [sortMode, setSortMode] = useState<SortMode>('recent');
+  const sortMode: SortMode = useSettingsStore(s => s.librarySortMode);
+  const setLibrarySortMode = useSettingsStore(s => s.setLibrarySortMode);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set(['liked']));
   const [customOrder, setCustomOrder] = useState<string[]>([]);
 
@@ -551,7 +552,7 @@ export default function LibraryScreen() {
   const [addAllTrackIds, setAddAllTrackIds] = useState<string[]>([]);
 
   const currentPlaylistId = usePlayerStore(s => s.currentPlaylistId);
-  const lastPlayedPlaylists = usePlayerStore(s => s.lastPlayedPlaylists);
+  const lastPlayedPlaylists = useSettingsStore(s => s.lastPlayedPlaylists);
   const playlistVersion = usePlayerStore(s => s.playlistVersion);
   const bumpPlaylistVersion = usePlayerStore(s => s.bumpPlaylistVersion);
   const setLikedSongs = usePlayerStore(s => s.setLikedSongs);
@@ -703,9 +704,9 @@ export default function LibraryScreen() {
       if (mode === 'custom' && customOrder.length === 0) {
         setCustomOrder(allItems.map(p => p.id));
       }
-      setSortMode(mode);
+      setLibrarySortMode(mode);
     },
-    [customOrder.length, allItems],
+    [customOrder.length, allItems, setLibrarySortMode],
   );
 
   const openInfoModal = useCallback((initialView: 'info' | 'cover') => {
