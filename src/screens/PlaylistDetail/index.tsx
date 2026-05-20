@@ -4,7 +4,7 @@
  *   drag-and-drop reordering, inline search, edit mode, recommended track
  *   suggestions, and full CRUD support (add, remove, rename).
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 
@@ -848,13 +848,20 @@ export default function PlaylistDetailScreen() {
         await loadAndPlayTracks(tracks, 0, {id: playlistId, name: playlistName});
       } else {
         await loadAndPlayPlaylist(playlistId, isShuffled);
+        // Magic mode: fisher-yates alone is not enough — trigger magic interleaving
+        // after the queue is loaded by cycling on→magic via toggleShuffle.
+        if (shuffleMode === 'magic') {
+          const store = usePlayerStore.getState();
+          store.setShuffleMode('on');
+          store.toggleShuffle();
+        }
       }
     } catch (e) {
       console.warn('play error', e);
     } finally {
       setLoadingPlaylist(false);
     }
-  }, [isOfflineMode, songs, playlistName, isThisPlaylistActive, togglePlay, playlistId, isShuffled]);
+  }, [isOfflineMode, songs, playlistName, isThisPlaylistActive, togglePlay, playlistId, isShuffled, shuffleMode]);
 
   // Pair each displayed song with its original index in `songs` so we can:
   // 1. Pass the exact startIndex to RNTP (correct playback position)
