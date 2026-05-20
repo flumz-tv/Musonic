@@ -264,6 +264,7 @@ Tracks highlight only when playing from the current playlist context (checked vi
 | iOS Dynamic Island header | `GlobalHeader` lacks safe-area insets; header partially hidden on notched devices |
 | iOS distribution | Unsigned IPA only — install via AltStore or Sideloadly; no App Store planned |
 | FSP swipe gesture | Removed in v1.0.0 — Android `<Modal>` + RNGH incompatibility |
+| Nav mode switch crash | Switching 3-button ↔ gesture navigation while app is running causes an OS-level process kill on some Samsung devices. Not reproducible in normal usage. |
 
 ---
 
@@ -271,3 +272,13 @@ Tracks highlight only when playing from the current playlist context (checked vi
 
 This project is licensed under the [CC BY-NC 4.0](LICENSE) license.
 Free to use and adapt for personal, non-commercial purposes. Commercial use is prohibited.
+
+---
+
+## Made by
+
+**[DoodzProg](https://github.com/DoodzProg)**: designed, built, and shipped from scratch.
+
+Tooling used along the way: [Claude Code](https://claude.ai/code) as an AI coding assistant, and a carefully curated playlist running in the background the whole time.
+
+*Built with passion. Debugged with patience. Shipped with pride.*

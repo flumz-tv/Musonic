@@ -11,6 +11,7 @@ import React from 'react';
 import {StyleSheet, View} from 'react-native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import LinearGradient from 'react-native-linear-gradient';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useT} from '../i18n';
 import HomeStack from './HomeStack';
 import SearchStack from './SearchStack';
@@ -46,7 +47,10 @@ function LibraryTabIcon({focused}: TabIconProps) {
 
 export default function TabNavigator() {
   const t = useT();
+  const insets = useSafeAreaInsets();
   useImageColor();
+
+  const tabBarHeight = TAB_H + insets.bottom;
 
   return (
     <View style={styles.fill}>
@@ -58,8 +62,8 @@ export default function TabNavigator() {
             borderTopWidth: 0,
             elevation: 0,
             backgroundColor: '#000000',
-            height: TAB_H,
-            paddingBottom: 8,
+            height: tabBarHeight,
+            paddingBottom: 8 + insets.bottom,
           },
           tabBarActiveTintColor: COLOR_ACTIVE,
           tabBarInactiveTintColor: COLOR_INACTIVE,
@@ -104,7 +108,7 @@ export default function TabNavigator() {
       </Tab.Navigator>
 
       {/* Gradient fade — transparent → black, juste au-dessus de la tab bar */}
-      <View style={styles.bottomFade} pointerEvents="none">
+      <View style={[styles.bottomFade, {bottom: tabBarHeight}]} pointerEvents="none">
         <LinearGradient
           colors={['transparent', '#000000']}
           style={StyleSheet.absoluteFill}
@@ -124,7 +128,6 @@ const styles = StyleSheet.create({
   fill: {flex: 1},
   bottomFade: {
     position: 'absolute',
-    bottom: TAB_H,
     left: 0,
     right: 0,
     height: 56,

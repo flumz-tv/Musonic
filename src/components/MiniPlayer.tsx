@@ -25,6 +25,7 @@ import {skipNext, skipPrevForce} from '../services/playerActions';
 import {blendWithBlack} from '../utils/colorUtils';
 import {darkTheme} from '../theme';
 import {useT} from '../i18n';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 const TAB_BAR_HEIGHT = 60;
 
@@ -68,6 +69,7 @@ function PlusCircleOutline() {
 
 export default function MiniPlayer() {
   const t = useT();
+  const insets = useSafeAreaInsets();
   // RNTP native hooks — react directly to native engine
   const currentTrack = useActiveTrack();
   const {state} = usePlaybackState();
@@ -146,7 +148,7 @@ export default function MiniPlayer() {
       <View
         style={[
           styles.container,
-          {bottom: TAB_BAR_HEIGHT + 8, backgroundColor: bgColor},
+          {bottom: TAB_BAR_HEIGHT + insets.bottom + 8, backgroundColor: bgColor},
         ]}>
         <View style={styles.progressTrack}>
           <View
