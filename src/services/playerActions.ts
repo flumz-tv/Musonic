@@ -226,7 +226,7 @@ export async function syncUpcomingFromRNTP(): Promise<void> {
       TrackPlayer.getActiveTrackIndex(),
     ]);
     if (activeIdx == null) return;
-    const upcoming = queue.slice(activeIdx + 1).map(t => ({
+    const toT = (t: any): Track => ({
       id: String(t.id),
       title: String(t.title ?? ''),
       artist: String(t.artist ?? ''),
@@ -237,8 +237,13 @@ export async function syncUpcomingFromRNTP(): Promise<void> {
       artwork: t.artwork ? String(t.artwork) : undefined,
       isMagic: (t as any).isMagic ? true : undefined,
       isAutoplay: (t as any).isAutoplay ? true : undefined,
-    }));
-    usePlayerStore.getState().setUpcoming(upcoming);
+    });
+    const store = usePlayerStore.getState();
+    const after = queue.slice(activeIdx + 1).map(toT);
+    const upcoming = store.repeatMode === 'all'
+      ? [...after, ...queue.slice(0, activeIdx).map(toT)]
+      : after;
+    store.setUpcoming(upcoming);
   } catch {}
 }
 

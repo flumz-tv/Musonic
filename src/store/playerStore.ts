@@ -161,7 +161,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   toggleShuffle: () => {
     const {shuffleMode, originalQueue} = get();
     const nextMode: ShuffleMode =
-      shuffleMode === 'off' ? 'on' : shuffleMode === 'on' ? 'magic' : 'off';
+      shuffleMode === 'off' ? 'on' :
+      shuffleMode === 'on' ? 'magic' :
+      'off';
     const newShuffled = nextMode !== 'off';
     set({shuffleMode: nextMode, isShuffled: newShuffled});
     useSettingsStore.getState().setShuffleMode(nextMode);
@@ -334,6 +336,36 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set({repeatMode: newMode});
     TrackPlayer.setRepeatMode(REPEAT_MAP[newMode]).catch(() => {});
     useSettingsStore.getState().setRepeatMode(newMode);
+
+    // Immediately rebuild upcoming so queue display reflects the new repeat state
+    // without waiting for the next track-change event.
+    (async () => {
+      try {
+        const [queue, activeIdx] = await Promise.all([
+          TrackPlayer.getQueue(),
+          TrackPlayer.getActiveTrackIndex(),
+        ]);
+        if (activeIdx == null || queue.length === 0) return;
+        const toT = (t: any): Track => ({
+          id: String(t.id),
+          title: String(t.title ?? ''),
+          artist: String(t.artist ?? ''),
+          album: String(t.album ?? ''),
+          duration: Number(t.duration ?? 0),
+          coverArt: t.coverArt ? String(t.coverArt) : undefined,
+          url: String(t.url ?? ''),
+          artwork: t.artwork ? String(t.artwork) : undefined,
+          isMagic: (t as any).isMagic ? true : undefined,
+          isAutoplay: (t as any).isAutoplay ? true : undefined,
+        });
+        const after = queue.slice(activeIdx + 1).map(toT);
+        if (newMode === 'all') {
+          set({upcoming: [...after, ...queue.slice(0, activeIdx).map(toT)]});
+        } else {
+          set({upcoming: after});
+        }
+      } catch {}
+    })();
   },
 
   openFullScreen: () => set({isFullScreenOpen: true}),
