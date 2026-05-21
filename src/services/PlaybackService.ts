@@ -4,12 +4,13 @@
  *   skip, seek, stop) fired from lock screen / notification buttons while the
  *   app is backgrounded or killed.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 import TrackPlayer, {Event, State} from 'react-native-track-player';
 import {useSettingsStore} from '../store/settingsStore';
 import {usePlayerStore} from '../store/playerStore';
+import {useDownloadStore} from '../store/downloadStore';
 import {fetchAutoplayTracks, toRNTPTrack} from './playerActions';
 import type {Track} from '../store/playerStore';
 
@@ -100,13 +101,29 @@ export async function PlaybackService() {
     }
   });
   TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async () => {
-    const {crossfadeDuration, isAutoplayEnabled} = useSettingsStore.getState();
+    const {crossfadeDuration, isAutoplayEnabled, isAutoDownloadEnabled} = useSettingsStore.getState();
     clearAll();
     if (crossfadeDuration > 0) {
       startFadeIn(crossfadeDuration);
       startProgressPoller(crossfadeDuration);
     } else {
       TrackPlayer.setVolume(1).catch(() => {});
+    }
+
+    if (isAutoDownloadEnabled) {
+      try {
+        const activeTrack = await TrackPlayer.getActiveTrack();
+        if (activeTrack) {
+          useDownloadStore.getState().enqueueTrack({
+            id: String(activeTrack.id),
+            title: String(activeTrack.title ?? ''),
+            artist: String(activeTrack.artist ?? ''),
+            album: String(activeTrack.album ?? ''),
+            coverArt: activeTrack.coverArt ? String(activeTrack.coverArt) : undefined,
+            duration: Number(activeTrack.duration ?? 0),
+          });
+        }
+      } catch { /* silent */ }
     }
 
     if (!isAutoplayEnabled || isLoadingAutoplay) return;
