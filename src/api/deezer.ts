@@ -4,11 +4,12 @@
  *   No API key required (public endpoints). Tracks are streamed via OctoFiesta,
  *   which accepts Deezer IDs as Subsonic IDs transparently.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 
 const BASE = 'https://api.deezer.com';
+const TIMEOUT_MS = 8000;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -37,13 +38,17 @@ type DeezerAlbumDetail = {
 // ─── Internal fetch helper ────────────────────────────────────────────────────
 
 async function deezerFetch<T>(path: string): Promise<T | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`${BASE}${path}`);
+    const res = await fetch(`${BASE}${path}`, {signal: controller.signal});
+    clearTimeout(timer);
     if (!res.ok) return null;
     const data = await res.json();
     if (data?.error) return null;
     return data as T;
   } catch {
+    clearTimeout(timer);
     return null;
   }
 }

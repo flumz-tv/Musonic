@@ -4,14 +4,15 @@
  *   current app version using proper SemVer comparison. Presents an Alert with
  *   a deep-link to the release page when a newer version is found.
  * @author DoodzProg
- * @version 1.0.1
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 import {Alert, Linking} from 'react-native';
 import {getT} from '../i18n';
 import {isNewerVersion} from '../utils/semver';
 
-const LOCAL_VERSION = '1.0.1';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const LOCAL_VERSION: string = require('../../package.json').version;
 const GITHUB_API = 'https://api.github.com/repos/DoodzProg/Musonic/releases/latest';
 const FETCH_TIMEOUT_MS = 8000;
 
