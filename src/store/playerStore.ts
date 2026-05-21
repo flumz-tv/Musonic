@@ -15,6 +15,7 @@ import {SubsonicError, getStreamUrl, getCoverArtUrl, subsonicGet} from '../api/c
 import {getDeezerArtistId, getDeezerArtistTopTracks, type DeezerTrack} from '../api/deezer';
 import {getT} from '../i18n';
 import {useSettingsStore} from './settingsStore';
+import {useDownloadStore} from './downloadStore';
 
 export type Track = {
   id: string;
@@ -168,18 +169,31 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set({shuffleMode: nextMode, isShuffled: newShuffled});
     useSettingsStore.getState().setShuffleMode(nextMode);
 
-    const toRNTP = (t: Track) => ({
-      id: String(t.id),
-      url: t.url ?? (t as any).streamUrl ?? '',
-      title: t.title,
-      artist: t.artist,
-      album: t.album,
-      artwork: t.artwork ?? '',
-      duration: t.duration,
-      coverArt: t.coverArt,
-      artistId: t.artistId,
-      isMagic: t.isMagic,
-    });
+    const toRNTP = (t: Track) => {
+      const tid = String(t.id);
+      const localPath = useDownloadStore.getState().getLocalPath(tid);
+      let url: string;
+      if (localPath) {
+        url = `file://${localPath}`;
+      } else if (!tid.startsWith('ext-')) {
+        url = t.url ?? (t as any).streamUrl ?? '';
+      } else {
+        url = (t as any).streamUrl ?? t.url ?? '';
+      }
+      return {
+        id: tid,
+        url,
+        title: t.title,
+        artist: t.artist,
+        album: t.album,
+        artwork: t.artwork ?? '',
+        duration: t.duration,
+        coverArt: t.coverArt,
+        artistId: t.artistId,
+        isMagic: t.isMagic,
+        isAutoplay: t.isAutoplay,
+      };
+    };
 
     const rnTrackToTrack = (t: any): Track => ({
       id: String(t.id),
