@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Create playlist from Library** — new `+` button in the Library header opens a modal to create an empty playlist directly from the app.
 - **Auto-download** — optional setting (disabled by default) that automatically downloads each played track to the device for offline playback. Enabling shows a confirmation warning about storage and server bandwidth usage.
 - **Add ext- tracks to playlist** — Deezer tracks can now be added to playlists via the add-to-playlist sheet; OctoFiesta import is triggered automatically and Navidrome is polled until the native ID is available.
+- **iOS app icon** — all required sizes now bundled (20×20 → 1024×1024) for iPhone and iPad; `Contents.json` updated with explicit filenames for every slot.
 
 ### Fixed
 - **deezerFetch timeout** — all Deezer API calls now use an 8 s `AbortController` timeout, preventing Magic Shuffle and Autoplay from hanging silently on slow CDN responses.
