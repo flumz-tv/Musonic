@@ -112,6 +112,9 @@ export default function ServerSetupScreen() {
             autoCapitalize="none"
             keyboardType="url"
           />
+          {url.startsWith('http://') && (
+            <Text style={styles.httpWarning}>{t.serverSetup.httpWarning}</Text>
+          )}
 
           <Text style={styles.label}>{t.serverSetup.usernameLabel}</Text>
           <TextInput
@@ -221,5 +224,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     marginTop: 12,
+  },
+  httpWarning: {
+    color: '#F0A500',
+    fontSize: 12,
+    marginTop: 6,
   },
 });
