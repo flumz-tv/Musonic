@@ -379,6 +379,7 @@ type HeaderProps = {
   coverArtId?: string;
   localCoverUri?: string | null;
   playlistName: string;
+  owner: string;
   songCount: number;
   totalDuration: number;
   isShuffled: boolean;
@@ -405,6 +406,7 @@ function PlaylistHeader({
   coverArtId,
   localCoverUri,
   playlistName,
+  owner,
   songCount,
   totalDuration,
   isShuffled: _isShuffled,
@@ -472,7 +474,7 @@ function PlaylistHeader({
             <Circle cx={12} cy={8} r={4} fill="#aaa" />
             <Path d="M4 20 C4 16 8 13 12 13 C16 13 20 16 20 20" fill="#aaa" />
           </Svg>
-          <Text style={styles.metaSub}>{t.playlistDetail.owner}</Text>
+          <Text style={styles.metaSub}>{owner}</Text>
           <Text style={styles.metaDot}>•</Text>
           <Text style={styles.metaSub}>
             {t.playlistDetail.trackCount(songCount)} · {formatDuration(totalDuration)}
@@ -701,6 +703,7 @@ export default function PlaylistDetailScreen() {
   const {playlistId, autoEdit} = route.params;
 
   const [playlistName, setPlaylistName] = useState('');
+  const [owner, setOwner] = useState('');
   const [description, setDescription] = useState('');
   const [songs, setSongs] = useState<SubsonicSong[]>([]);
   const [coverArtId, setCoverArtId] = useState<string | undefined>();
@@ -733,6 +736,10 @@ export default function PlaylistDetailScreen() {
   const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
   const togglePlay = usePlayerStore(s => s.togglePlay);
   const isOfflineMode = useSettingsStore(s => s.isOfflineMode);
+  const activeServerUsername = useSettingsStore(s => {
+    const id = s.activeServerId;
+    return s.servers.find(srv => srv.id === id)?.username ?? '';
+  });
   const downloads = useDownloadStore(s => s.downloads);
   const t = useT();
 
@@ -776,6 +783,7 @@ export default function PlaylistDetailScreen() {
       const offlineSongs = usePlaylistCacheStore.getState().getOfflineSongs(playlistId);
       const {isDownloaded} = useDownloadStore.getState();
       setPlaylistName(cachedPl?.name ?? '');
+      setOwner(cachedPl?.owner ?? activeServerUsername);
       setCoverArtId(cachedPl?.coverArt);
       setSongs(offlineSongs.filter(s => isDownloaded(String(s.id))));
       setLoading(false);
@@ -784,6 +792,7 @@ export default function PlaylistDetailScreen() {
     getPlaylist(playlistId)
       .then(({playlist, songs: s}) => {
         setPlaylistName(playlist.name);
+        setOwner(playlist.owner ?? activeServerUsername);
         setDescription(playlist.comment ?? '');
         setCoverArtId(playlist.coverArt);
         setSongs(s);
@@ -1098,6 +1107,7 @@ export default function PlaylistDetailScreen() {
         coverArtId={coverArtId}
         localCoverUri={localCoverUri}
         playlistName={playlistName}
+        owner={owner}
         songCount={songs.length}
         totalDuration={totalDuration}
         isShuffled={isShuffled}
@@ -1162,7 +1172,7 @@ export default function PlaylistDetailScreen() {
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      topBarH, coverArtId, localCoverUri, playlistName, songs, totalDuration,
+      topBarH, coverArtId, localCoverUri, playlistName, owner, songs, totalDuration,
       isShuffled, shuffleMode, isThisPlaylistActive, isGlobalPlaying, loadingPlaylist,
       query, handlePlay, handleStartEdit, handleOpenInfo, isOfflineMode, downloads,
     ],
