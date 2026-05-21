@@ -3,10 +3,10 @@
  * @description Bottom sheet for adding one or more tracks to existing playlists
  *   or creating a new one. Updates the playlist membership cache on success.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -22,6 +22,7 @@ import Animated, {useSharedValue, useAnimatedStyle, withTiming, withSpring, Easi
 import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import Svg, {Circle, Path} from 'react-native-svg';
 import CoverArt from './CoverArt';
+import Toast from './Toast';
 import {usePlayerStore} from '../store/playerStore';
 import {usePlaylistCacheStore} from '../store/playlistCacheStore';
 import {useT, getT} from '../i18n';
@@ -31,7 +32,7 @@ import {
   updatePlaylist,
   createPlaylist,
 } from '../api/endpoints/playlists';
-import {SubsonicError} from '../api/client';
+import {getStreamUrl, subsonicGet} from '../api/client';
 import CreatePlaylistModal from './CreatePlaylistModal';
 import type {SubsonicPlaylist} from '../api/types';
 
@@ -140,6 +141,16 @@ export default function AddToPlaylistSheet({
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [localToastMsg, setLocalToastMsg] = useState('');
+  const [localToastVisible, setLocalToastVisible] = useState(false);
+  const localToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showLocalToast = useCallback((msg: string) => {
+    if (localToastTimer.current) clearTimeout(localToastTimer.current);
+    setLocalToastMsg(msg);
+    setLocalToastVisible(true);
+    localToastTimer.current = setTimeout(() => setLocalToastVisible(false), 3500);
+  }, []);
 
   const bumpPlaylistVersion = usePlayerStore(s => s.bumpPlaylistVersion);
   const setPlaylistSong = usePlayerStore(s => s.setPlaylistSong);
@@ -249,11 +260,62 @@ export default function AddToPlaylistSheet({
                 : p,
             ),
           );
-          const isPermanent = e instanceof SubsonicError && e.isPermanent;
-          if (isPermanent) {
-            onToast(getT().addToPlaylist.unavailableTrack);
-          }
+          onToast(getT().addToPlaylist.unavailableTrack);
           console.warn('[AddToPlaylistSheet] remove error:', e instanceof Error ? e.message : String(e));
+        }
+      } else if (trackId.startsWith('ext-')) {
+        // Ext track: no optimistic update — wait for full success before touching state
+        showLocalToast(getT().likes.sendingToServer);
+
+        // Consume some bytes so OctoFiesta opens the connection and triggers download
+        fetch(getStreamUrl(trackId), {headers: {Range: 'bytes=0-8192'}})
+          .then(res => res.arrayBuffer())
+          .catch(() => {});
+
+        // Poll search3.view every 3s for up to 75s (covers download + 30s Navidrome scan debounce)
+        let navidromeId: string | null = null;
+        for (let attempt = 0; attempt < 25; attempt++) {
+          await new Promise<void>(r => setTimeout(r, 3000));
+          if (attempt === 10) {
+            showLocalToast(getT().likes.stillImporting);
+          }
+          try {
+            const res = await subsonicGet<any>('search3.view', {
+              query: trackTitle ?? '',
+              songCount: 10,
+              albumCount: 0,
+              artistCount: 0,
+            });
+            const songs: any[] = res.searchResult3?.song ?? [];
+            const match = songs.find(
+              s => !String(s.id).startsWith('ext-') && s.title === trackTitle,
+            );
+            if (match) { navidromeId = String(match.id); break; }
+          } catch { /* keep polling */ }
+        }
+
+        if (!navidromeId) {
+          showLocalToast(getT().likes.sendError);
+          return;
+        }
+
+        try {
+          await updatePlaylist(item.id, undefined, [navidromeId]);
+          bumpPlaylistVersion();
+          // Update state only after confirmed server success
+          const newIdx = item.songCount;
+          setPlaylists(prev =>
+            prev.map(p =>
+              p.id === item.id
+                ? {...p, containsTrack: true, trackIndex: newIdx, songCount: p.songCount + 1}
+                : p,
+            ),
+          );
+          setPlaylistSong(trackId, true);
+          cacheAdd([trackId]);
+          showLocalToast(getT().addToPlaylist.addedTo(trackTitle ?? '', item.name));
+        } catch {
+          showLocalToast(getT().addToPlaylist.unavailableTrack);
         }
       } else {
         // Optimistic add — track will be appended at current songCount index
@@ -270,7 +332,7 @@ export default function AddToPlaylistSheet({
               : p,
           ),
         );
-        onToast(getT().addToPlaylist.addedTo(item.name));
+        onToast(getT().addToPlaylist.addedTo(trackTitle ?? '', item.name));
         try {
           await updatePlaylist(item.id, undefined, [String(trackId)]);
           bumpPlaylistVersion();
@@ -289,15 +351,12 @@ export default function AddToPlaylistSheet({
                 : p,
             ),
           );
-          const isPermanent = e instanceof SubsonicError && e.isPermanent;
-          if (isPermanent) {
-            onToast(getT().addToPlaylist.unavailableTrack);
-          }
+          onToast(getT().addToPlaylist.unavailableTrack);
           console.warn('[AddToPlaylistSheet] add error:', e instanceof Error ? e.message : String(e));
         }
       }
     },
-    [trackId, onToast, bumpPlaylistVersion, setPlaylistSong, playlists, cacheAdd, cacheRemove],
+    [trackId, trackTitle, onToast, showLocalToast, bumpPlaylistVersion, setPlaylistSong, playlists, cacheAdd, cacheRemove],
   );
 
   const handleAddAllToPlaylist = useCallback(
@@ -325,7 +384,7 @@ export default function AddToPlaylistSheet({
         await createPlaylist(name, [String(trackId)]);
         setPlaylistSong(trackId, true);
         cacheAdd([trackId]);
-        onToast(getT().addToPlaylist.addedTo(name));
+        onToast(getT().addToPlaylist.addedTo(trackTitle ?? '', name));
         bumpPlaylistVersion();
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -445,6 +504,8 @@ export default function AddToPlaylistSheet({
             </ScrollView>
           )}
           </Animated.View>
+          <Toast visible={localToastVisible} message={localToastMsg} />
+
         </GestureHandlerRootView>
       </Modal>
 
