@@ -4,7 +4,7 @@
  *   Add keys here first, then mirror them in en.ts. The i18n/index.ts hook
  *   selects the active locale based on settingsStore.language.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 // French UI strings — single source of truth for all user-visible text.
@@ -39,6 +39,7 @@ export const t = {
       unreachable: "Serveur introuvable — vérifie l'URL",
       generic: 'Connexion impossible',
     },
+    httpWarning: 'HTTP au lieu de HTTPS — tes identifiants peuvent transiter en clair.',
   },
 
   // ─── Tab Bar ───────────────────────────────────────────────────────────────
@@ -134,6 +135,11 @@ export const t = {
     offlineDownloadComplete: (name: string) => `"${name}" disponible hors-ligne`,
     likedTrackCount: (n: number) =>
       `${n} titre${n !== 1 ? 's' : ''} aimé${n !== 1 ? 's' : ''}`,
+    createPlaylistTitle: 'Nouvelle playlist',
+    createPlaylistPlaceholder: 'Nom de la playlist',
+    createPlaylistCancel: 'Annuler',
+    createPlaylistConfirm: 'Créer',
+    createPlaylistError: 'Impossible de créer la playlist',
     sort: {
       recent: 'Récents',
       added: 'Ajoutés récemment',
@@ -151,7 +157,6 @@ export const t = {
 
   // ─── Playlist Detail ───────────────────────────────────────────────────────
   playlistDetail: {
-    owner: 'Doodz',
     trackCount: (n: number) => `${n} titre${n !== 1 ? 's' : ''}`,
     contextLabel: 'LECTURE À PARTIR DE PLAYLIST',
     searchPlaceholder: 'Rechercher sur cette page',
@@ -261,7 +266,7 @@ export const t = {
     sortButton: 'Trier',
     newPlaylist: 'Nouvelle playlist',
     savedIn: 'Enregistrée dans',
-    addedTo: (name: string) => `Ajouté à ${name}.`,
+    addedTo: (title: string, name: string) => { const t = title.length > 15 ? title.slice(0, 15) + '…' : title; const n = name.length > 15 ? name.slice(0, 15) + '…' : name; return `Titre « ${t} » ajouté à la playlist « ${n} ».`; },
     removedFrom: (name: string) => `Supprimé de ${name}.`,
     queuedTracks: (n: number) => `${n} titres ajoutés à la file d'attente`,
     queueError: "Erreur lors de l'ajout à la file d'attente",
@@ -294,9 +299,13 @@ export const t = {
   // ─── Like Retry Manager ────────────────────────────────────────────────────
   likes: {
     addedToLiked: 'Ajouté aux titres likés',
+    addedToLikedNamed: (title: string) => `« ${title} » ajouté aux titres likés`,
     removedFromLiked: 'Supprimé des titres likés',
     indexError: "Impossible d'ajouter : titre non indexé sur le serveur",
     unavailableTrack: 'Titre non disponible localement',
+    sendingToServer: 'Envoi vers votre serveur…',
+    stillImporting: 'Import en cours, veuillez patienter…',
+    sendError: "Impossible d'importer le titre",
   },
 
   // ─── Offline Banner ────────────────────────────────────────────────────────
@@ -317,6 +326,7 @@ export const t = {
       player: 'Lecteur Musonic',
       transitions: 'Transitions entre les titres',
       playback: "Contrôles d'écoute",
+
       display: 'Affichage',
       offline: 'Mode hors-ligne (Bêta)',
     },
