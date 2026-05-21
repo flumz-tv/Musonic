@@ -27,7 +27,7 @@ import CoverArt from '../../components/CoverArt';
 import SongOptionsSheet from '../../components/SongOptionsSheet';
 import {showToast} from '../../components/Toast';
 import {useT} from '../../i18n';
-import {useSearchHistoryStore} from '../../store/searchHistoryStore';
+import {useSearchHistoryStore, type HistoryItem} from '../../store/searchHistoryStore';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -145,11 +145,43 @@ function SongResultRow({
   );
 }
 
+// ─── History thumbnail ────────────────────────────────────────────────────────
+
+function HistoryItemThumb({item}: {item: HistoryItem}) {
+  if (item.type === 'text') {
+    return (
+      <View style={styles.historyThumbWrap}>
+        <ClockIcon size={18} />
+      </View>
+    );
+  }
+  if (item.type === 'artist') {
+    const uri = item.imageUrl ?? undefined;
+    return uri
+      ? <Image source={{uri}} style={[styles.historyThumb, styles.historyThumbRound]} />
+      : <View style={[styles.historyThumb, styles.historyThumbRound, styles.historyThumbPlaceholder]} />;
+  }
+  if (item.type === 'album') {
+    return <Image source={{uri: getCoverArtUrl(item.id, 100)}} style={styles.historyThumb} />;
+  }
+  // song
+  return <Image source={{uri: getCoverArtUrl(item.coverArt || item.id, 100)}} style={styles.historyThumb} />;
+}
+
+function historyLabel(item: HistoryItem): {primary: string; secondary?: string} {
+  switch (item.type) {
+    case 'text': return {primary: item.query};
+    case 'artist': return {primary: item.name, secondary: 'Artist'};
+    case 'album': return {primary: item.name, secondary: item.artist};
+    case 'song': return {primary: item.title, secondary: item.artist};
+  }
+}
+
 // ─── History Section ──────────────────────────────────────────────────────────
 
 function SearchHistorySection({
   history, onSelect, onClear,
-}: {history: string[]; onSelect: (term: string) => void; onClear: () => void}) {
+}: {history: HistoryItem[]; onSelect: (item: HistoryItem) => void; onClear: () => void}) {
   const tr = useT();
   if (!history.length) return null;
   return (
@@ -160,16 +192,24 @@ function SearchHistorySection({
           <Text style={styles.historyClearText}>{tr.search.history.clear}</Text>
         </TouchableOpacity>
       </View>
-      {history.map(term => (
-        <TouchableOpacity
-          key={term}
-          style={styles.historyItem}
-          onPress={() => onSelect(term)}
-          activeOpacity={0.6}>
-          <ClockIcon />
-          <Text style={styles.historyItemText} numberOfLines={1}>{term}</Text>
-        </TouchableOpacity>
-      ))}
+      {history.map((item, idx) => {
+        const {primary, secondary} = historyLabel(item);
+        return (
+          <TouchableOpacity
+            key={`${item.type}-${idx}`}
+            style={styles.historyItem}
+            onPress={() => onSelect(item)}
+            activeOpacity={0.6}>
+            <HistoryItemThumb item={item} />
+            <View style={styles.historyItemInfo}>
+              <Text style={styles.historyItemPrimary} numberOfLines={1}>{primary}</Text>
+              {secondary != null && (
+                <Text style={styles.historyItemSecondary} numberOfLines={1}>{secondary}</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
@@ -188,7 +228,7 @@ export default function SearchActive() {
   const genRef = useRef(0);
   const allSongsRef = useRef<SubsonicSong[]>([]);
 
-  const {history, addTerm, clearHistory} = useSearchHistoryStore();
+  const {history, addItem, clearHistory} = useSearchHistoryStore();
   const [selectedSong, setSelectedSong] = useState<SubsonicSong | null>(null);
   const [songOptsVisible, setSongOptsVisible] = useState(false);
 
@@ -199,14 +239,40 @@ export default function SearchActive() {
 
   const handleSubmit = useCallback(() => {
     const q = query.trim();
-    if (q) addTerm(q);
-  }, [query, addTerm]);
+    if (q) addItem({type: 'text', query: q});
+  }, [query, addItem]);
 
-  const handleSelectHistory = useCallback((term: string) => {
-    addTerm(term);
-    setQuery(term);
-    inputRef.current?.blur();
-  }, [addTerm]);
+  const handleSelectItem = useCallback((item: HistoryItem) => {
+    switch (item.type) {
+      case 'text':
+        addItem(item);
+        setQuery(item.query);
+        inputRef.current?.blur();
+        break;
+      case 'artist':
+        addItem(item);
+        navigation.push('ArtistDetail', {artistId: item.id, artistName: item.name});
+        break;
+      case 'album':
+        addItem(item);
+        navigation.push('AlbumDetail', {albumId: item.id});
+        break;
+      case 'song':
+        addItem(item);
+        loadAndPlayTracks([{
+          id: item.id,
+          title: item.title,
+          artist: item.artist,
+          album: '',
+          duration: item.duration ?? 0,
+          coverArt: item.coverArt,
+          streamUrl: getStreamUrl(item.id),
+          url: getStreamUrl(item.id),
+          artwork: getCoverArtUrl(item.coverArt || item.id, 300),
+        }], 0);
+        break;
+    }
+  }, [addItem, navigation]);
 
   useEffect(() => {
     const focusTimer = setTimeout(() => inputRef.current?.focus(), 100);
@@ -262,11 +328,12 @@ export default function SearchActive() {
   }, [query]);
 
   const handlePlaySong = useCallback((song: SubsonicSong) => {
+    addItem({type: 'song', id: String(song.id), title: song.title, artist: song.artist, duration: song.duration, coverArt: song.coverArt});
     const songs = allSongsRef.current;
     const tracks = songs.map(songToTrack);
     const startIndex = songs.findIndex(s => String(s.id) === String(song.id));
     loadAndPlayTracks(tracks, startIndex >= 0 ? startIndex : 0);
-  }, []);
+  }, [addItem]);
 
   const renderItem = useCallback(({item}: {item: SearchItem}) => {
     if (item.type === 'artist') {
@@ -275,7 +342,10 @@ export default function SearchActive() {
         <ArtistResultRow
           artist={item.data}
           imageUrl={imageUrl}
-          onPress={() => navigation.push('ArtistDetail', {artistId: item.data.id, artistName: item.data.name})}
+          onPress={() => {
+            addItem({type: 'artist', id: item.data.id, name: item.data.name, imageUrl: item.data.artistImageUrl ?? artistImages.get(item.data.id) ?? undefined});
+            navigation.push('ArtistDetail', {artistId: item.data.id, artistName: item.data.name});
+          }}
         />
       );
     }
@@ -283,7 +353,10 @@ export default function SearchActive() {
       return (
         <AlbumResultRow
           album={item.data}
-          onPress={() => navigation.push('AlbumDetail', {albumId: item.data.id})}
+          onPress={() => {
+            addItem({type: 'album', id: item.data.id, name: item.data.name, artist: item.data.artist});
+            navigation.push('AlbumDetail', {albumId: item.data.id});
+          }}
         />
       );
     }
@@ -294,7 +367,7 @@ export default function SearchActive() {
         onMore={() => handleMore(item.data)}
       />
     );
-  }, [artistImages, navigation, handlePlaySong, handleMore]);
+  }, [artistImages, navigation, handlePlaySong, handleMore, addItem]);
 
   const keyExtractor = useCallback((item: SearchItem) => `${item.type}-${item.data.id}`, []);
 
@@ -329,7 +402,7 @@ export default function SearchActive() {
       {showHistory ? (
         <SearchHistorySection
           history={history}
-          onSelect={handleSelectHistory}
+          onSelect={handleSelectItem}
           onClear={clearHistory}
         />
       ) : loading ? (
@@ -398,6 +471,12 @@ const styles = StyleSheet.create({
   },
   historySectionTitle: {fontSize: 16, fontWeight: '700', color: '#fff'},
   historyClearText: {fontSize: 13, fontWeight: '600', color: '#b3b3b3'},
-  historyItem: {flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13, gap: 14},
-  historyItemText: {flex: 1, color: '#e0e0e0', fontSize: 14, fontWeight: '500'},
+  historyItem: {flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, gap: 12},
+  historyThumbWrap: {width: 40, height: 40, alignItems: 'center', justifyContent: 'center'},
+  historyThumb: {width: 40, height: 40, borderRadius: 4, backgroundColor: '#333'},
+  historyThumbRound: {borderRadius: 20},
+  historyThumbPlaceholder: {backgroundColor: '#444'},
+  historyItemInfo: {flex: 1},
+  historyItemPrimary: {color: '#e0e0e0', fontSize: 14, fontWeight: '500'},
+  historyItemSecondary: {color: '#707070', fontSize: 12, marginTop: 1},
 });

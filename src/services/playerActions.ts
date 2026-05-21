@@ -4,7 +4,7 @@
  *   queue-loading functions resolve `currentPlaylistId` so the orange active-track
  *   indicator in PlaylistDetail stays accurate regardless of play context.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 import TrackPlayer from 'react-native-track-player';
@@ -102,7 +102,9 @@ export async function loadAndPlayPlaylist(
   await TrackPlayer.add([toRNTPTrack(ordered[0])]);
   await TrackPlayer.play();
   if (ordered.length > 1) {
-    TrackPlayer.add(ordered.slice(1).map(toRNTPTrack)).catch(() => {});
+    TrackPlayer.add(ordered.slice(1).map(toRNTPTrack))
+      .then(() => syncUpcomingFromRNTP())
+      .catch(() => {});
   }
 }
 
@@ -143,7 +145,9 @@ export async function loadAndPlayAlbum(
     await TrackPlayer.add([toRNTPTrack(ordered[0])]);
     await TrackPlayer.play();
     if (ordered.length > 1) {
-      TrackPlayer.add(ordered.slice(1).map(toRNTPTrack)).catch(() => {});
+      TrackPlayer.add(ordered.slice(1).map(toRNTPTrack))
+        .then(() => syncUpcomingFromRNTP())
+        .catch(() => {});
     }
   } catch (error) {
     console.warn('Album playback error:', error);
@@ -190,6 +194,7 @@ export async function loadAndPlayTracks(
     if (idx < tracks.length - 1) {
       await TrackPlayer.add(tracks.slice(idx + 1).map(toRNTPTrack));
     }
+    await syncUpcomingFromRNTP();
   })().catch(() => {});
 }
 
@@ -221,7 +226,7 @@ export async function syncUpcomingFromRNTP(): Promise<void> {
       TrackPlayer.getActiveTrackIndex(),
     ]);
     if (activeIdx == null) return;
-    const upcoming = queue.slice(activeIdx + 1).map(t => ({
+    const toT = (t: any): Track => ({
       id: String(t.id),
       title: String(t.title ?? ''),
       artist: String(t.artist ?? ''),
@@ -232,8 +237,13 @@ export async function syncUpcomingFromRNTP(): Promise<void> {
       artwork: t.artwork ? String(t.artwork) : undefined,
       isMagic: (t as any).isMagic ? true : undefined,
       isAutoplay: (t as any).isAutoplay ? true : undefined,
-    }));
-    usePlayerStore.getState().setUpcoming(upcoming);
+    });
+    const store = usePlayerStore.getState();
+    const after = queue.slice(activeIdx + 1).map(toT);
+    const upcoming = store.repeatMode === 'all'
+      ? [...after, ...queue.slice(0, activeIdx).map(toT)]
+      : after;
+    store.setUpcoming(upcoming);
   } catch {}
 }
 

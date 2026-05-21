@@ -5,7 +5,7 @@
  *   and full-screen player visibility. RNTP is the source of truth for audio;
  *   this store is the source of truth for UI.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 import {create} from 'zustand';
@@ -14,6 +14,7 @@ import {star, unstar, getRandomSongs, getSimilarSongs} from '../api/endpoints/li
 import {SubsonicError, getStreamUrl, getCoverArtUrl, subsonicGet} from '../api/client';
 import {getDeezerArtistId, getDeezerArtistTopTracks, type DeezerTrack} from '../api/deezer';
 import {getT} from '../i18n';
+import {useSettingsStore} from './settingsStore';
 
 export type Track = {
   id: string;
@@ -160,9 +161,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   toggleShuffle: () => {
     const {shuffleMode, originalQueue} = get();
     const nextMode: ShuffleMode =
-      shuffleMode === 'off' ? 'on' : shuffleMode === 'on' ? 'magic' : 'off';
+      shuffleMode === 'off' ? 'on' :
+      shuffleMode === 'on' ? 'magic' :
+      'off';
     const newShuffled = nextMode !== 'off';
     set({shuffleMode: nextMode, isShuffled: newShuffled});
+    useSettingsStore.getState().setShuffleMode(nextMode);
 
     const toRNTP = (t: Track) => ({
       id: String(t.id),
@@ -331,6 +335,37 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const newMode = next[get().repeatMode];
     set({repeatMode: newMode});
     TrackPlayer.setRepeatMode(REPEAT_MAP[newMode]).catch(() => {});
+    useSettingsStore.getState().setRepeatMode(newMode);
+
+    // Immediately rebuild upcoming so queue display reflects the new repeat state
+    // without waiting for the next track-change event.
+    (async () => {
+      try {
+        const [queue, activeIdx] = await Promise.all([
+          TrackPlayer.getQueue(),
+          TrackPlayer.getActiveTrackIndex(),
+        ]);
+        if (activeIdx == null || queue.length === 0) return;
+        const toT = (t: any): Track => ({
+          id: String(t.id),
+          title: String(t.title ?? ''),
+          artist: String(t.artist ?? ''),
+          album: String(t.album ?? ''),
+          duration: Number(t.duration ?? 0),
+          coverArt: t.coverArt ? String(t.coverArt) : undefined,
+          url: String(t.url ?? ''),
+          artwork: t.artwork ? String(t.artwork) : undefined,
+          isMagic: (t as any).isMagic ? true : undefined,
+          isAutoplay: (t as any).isAutoplay ? true : undefined,
+        });
+        const after = queue.slice(activeIdx + 1).map(toT);
+        if (newMode === 'all') {
+          set({upcoming: [...after, ...queue.slice(0, activeIdx).map(toT)]});
+        } else {
+          set({upcoming: after});
+        }
+      } catch {}
+    })();
   },
 
   openFullScreen: () => set({isFullScreenOpen: true}),
@@ -524,7 +559,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       return {playlistSongIds: next};
     }),
 
-  setCurrentPlaylist: (id, name) =>
+  setCurrentPlaylist: (id, name) => {
+    if (id != null) {
+      useSettingsStore.getState().setLastPlayedPlaylist(id, Date.now());
+    }
     set(s => ({
       currentPlaylistId: id,
       currentPlaylistName: name,
@@ -532,7 +570,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         id != null
           ? {...s.lastPlayedPlaylists, [id]: Date.now()}
           : s.lastPlayedPlaylists,
-    })),
+    }));
+  },
 
   reorderQueue: (from, to) => {
     const arr = [...get().upcoming];
@@ -581,5 +620,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   bumpPlaylistVersion: () => set(s => ({playlistVersion: s.playlistVersion + 1})),
   setFetchingMagic: v => set({isFetchingMagic: v}),
-  setShuffleMode: mode => set({shuffleMode: mode, isShuffled: mode !== 'off'}),
+  setShuffleMode: mode => {
+    set({shuffleMode: mode, isShuffled: mode !== 'off'});
+    useSettingsStore.getState().setShuffleMode(mode);
+  },
 }));

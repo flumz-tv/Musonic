@@ -5,7 +5,7 @@
  *   Persisted across restarts; consumed by RootNavigator to gate the server-setup
  *   flow.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 import {create} from 'zustand';
@@ -14,6 +14,7 @@ import {mmkvStorage} from './storage';
 
 export type ColorScheme = 'dark' | 'light' | 'system';
 export type Locale = 'fr' | 'en';
+export type LibrarySortMode = 'recent' | 'added' | 'alpha' | 'custom';
 
 export type Server = {
   id: string;
@@ -51,6 +52,14 @@ type SettingsState = {
   setOfflineMode: (v: boolean) => void;
   autoOnlineMode: boolean;
   setAutoOnlineMode: (v: boolean) => void;
+  shuffleMode: 'off' | 'on' | 'magic';
+  setShuffleMode: (mode: 'off' | 'on' | 'magic') => void;
+  repeatMode: 'none' | 'all' | 'one';
+  setRepeatMode: (mode: 'none' | 'all' | 'one') => void;
+  librarySortMode: LibrarySortMode;
+  setLibrarySortMode: (mode: LibrarySortMode) => void;
+  lastPlayedPlaylists: Record<string, number>;
+  setLastPlayedPlaylist: (id: string, ts: number) => void;
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -84,6 +93,15 @@ export const useSettingsStore = create<SettingsState>()(
       setOfflineMode: v => set({isOfflineMode: v}),
       autoOnlineMode: true,
       setAutoOnlineMode: v => set({autoOnlineMode: v}),
+      shuffleMode: 'off',
+      setShuffleMode: mode => set({shuffleMode: mode}),
+      repeatMode: 'none',
+      setRepeatMode: mode => set({repeatMode: mode}),
+      librarySortMode: 'recent',
+      setLibrarySortMode: mode => set({librarySortMode: mode}),
+      lastPlayedPlaylists: {},
+      setLastPlayedPlaylist: (id, ts) =>
+        set(s => ({lastPlayedPlaylists: {...s.lastPlayedPlaylists, [id]: ts}})),
       getActiveServer: () => {
         const {servers, activeServerId} = get();
         return servers.find(s => s.id === activeServerId) ?? null;
