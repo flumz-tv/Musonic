@@ -379,6 +379,7 @@ type HeaderProps = {
   coverArtId?: string;
   localCoverUri?: string | null;
   playlistName: string;
+  owner: string;
   songCount: number;
   totalDuration: number;
   isShuffled: boolean;
@@ -405,6 +406,7 @@ function PlaylistHeader({
   coverArtId,
   localCoverUri,
   playlistName,
+  owner,
   songCount,
   totalDuration,
   isShuffled: _isShuffled,
@@ -472,7 +474,7 @@ function PlaylistHeader({
             <Circle cx={12} cy={8} r={4} fill="#aaa" />
             <Path d="M4 20 C4 16 8 13 12 13 C16 13 20 16 20 20" fill="#aaa" />
           </Svg>
-          <Text style={styles.metaSub}>{owner || activeServerUsername}</Text>
+          <Text style={styles.metaSub}>{owner}</Text>
           <Text style={styles.metaDot}>•</Text>
           <Text style={styles.metaSub}>
             {t.playlistDetail.trackCount(songCount)} · {formatDuration(totalDuration)}
@@ -1098,6 +1100,7 @@ export default function PlaylistDetailScreen() {
         coverArtId={coverArtId}
         localCoverUri={localCoverUri}
         playlistName={playlistName}
+        owner={owner}
         songCount={songs.length}
         totalDuration={totalDuration}
         isShuffled={isShuffled}
@@ -1162,7 +1165,7 @@ export default function PlaylistDetailScreen() {
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      topBarH, coverArtId, localCoverUri, playlistName, songs, totalDuration,
+      topBarH, coverArtId, localCoverUri, playlistName, owner, songs, totalDuration,
       isShuffled, shuffleMode, isThisPlaylistActive, isGlobalPlaying, loadingPlaylist,
       query, handlePlay, handleStartEdit, handleOpenInfo, isOfflineMode, downloads,
     ],
