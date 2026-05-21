@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.2] - 2026-05-21
+
+### Added
+- **iOS app icon** — all required sizes now bundled (20×20 → 1024×1024) for iPhone and iPad; `Contents.json` updated with explicit filenames for every slot.
+
+---
+
 ## [1.0.1] - 2026-05-20
 
 ### Fixed
