@@ -3,11 +3,11 @@
  * @description Sticky mini player bar shown at the bottom of main screens.
  *   Supports swipe-left/right to skip tracks and tap to open the full-screen player.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 import React, {useCallback, useRef, useState} from 'react';
-import {Animated, Easing, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {ActivityIndicator, Animated, Easing, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {runOnJS} from 'react-native-reanimated';
 import Svg, {Circle, Path} from 'react-native-svg';
@@ -79,6 +79,7 @@ export default function MiniPlayer() {
   // UI-only store state
   const likedSongIds = usePlayerStore(s => s.likedSongIds);
   const localLikeOverrides = usePlayerStore(s => s.localLikeOverrides);
+  const pendingLikes = usePlayerStore(s => s.pendingLikes);
   const savedSet = usePlaylistCacheStore(s => s.savedSet);
   const dominantColor = usePlayerStore(s => s.dominantColor);
   const isMiniPlayerVisible = usePlayerStore(s => s.isMiniPlayerVisible);
@@ -93,15 +94,26 @@ export default function MiniPlayer() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const coverSlide = useRef(new Animated.Value(0)).current;
 
-  const handleToggleLike = useCallback(() => {
+  const handleToggleLike = useCallback(async () => {
     if (!trackId) return;
     const wasLiked = localLikeOverrides[trackId] ?? likedSongIds.has(trackId);
-    toggleLike(trackId).then(success => {
-      if (success) {
+    const isExt = trackId.startsWith('ext-');
+    if (isExt && !wasLiked) showToast(t.likes.sendingToServer);
+    await toggleLike(trackId, currentTrack?.title, currentTrack?.artist);
+    if (isExt) {
+      setTimeout(() => {
+        const pending = usePlayerStore.getState().pendingLikeToast;
+        if (pending) { showToast(pending); usePlayerStore.getState().setPendingLikeToast(null); }
+      }, 100);
+    } else {
+      const pending = usePlayerStore.getState().pendingLikeToast;
+      if (pending) {
+        showToast(pending);
+        usePlayerStore.getState().setPendingLikeToast(null);
+      } else {
         showToast(wasLiked ? t.likes.removedFromLiked : t.likes.addedToLiked);
       }
-      // false = pending retry, LikeRetryManager handles the toast
-    });
+    }
   }, [trackId, localLikeOverrides, likedSongIds, toggleLike, t]);
 
   const handleMiniSwipe = (direction: 'next' | 'prev') => {
@@ -187,12 +199,11 @@ export default function MiniPlayer() {
           <View style={styles.actions}>
             <TouchableOpacity
               onPress={handleToggleLike}
-              hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
-              <HeartIcon
-                size={22}
-                color={isLiked ? '#E8553E' : '#fff'}
-                filled={isLiked}
-              />
+              hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}
+              disabled={pendingLikes.has(trackId)}>
+              {pendingLikes.has(trackId)
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <HeartIcon size={22} color={isLiked ? '#E8553E' : '#fff'} filled={isLiked} />}
             </TouchableOpacity>
 
             <TouchableOpacity
