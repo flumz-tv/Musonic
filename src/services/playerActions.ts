@@ -16,7 +16,7 @@ import {usePlayerStore} from '../store/playerStore';
 import {useDownloadStore} from '../store/downloadStore';
 import type {Track} from '../store/playerStore';
 
-function fisherYates(arr: Track[]): Track[] {
+export function fisherYates(arr: Track[]): Track[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));

@@ -4,7 +4,7 @@
  *   global providers (SafeArea, GestureHandler), the audio player setup, and
  *   app-wide overlays (OfflineBanner, LikeRetryManager).
  * @author DoodzProg
- * @version 1.0.1
+ * @version 1.0.2
  * @license MIT
  */
 

@@ -3,7 +3,7 @@
  * @description English UI strings. Mirrors the structure of fr.ts exactly.
  *   Swap the active locale in i18n/index.ts to enable English.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 export const en = {
@@ -36,6 +36,7 @@ export const en = {
       unreachable: 'Server not found — check the URL',
       generic: 'Unable to connect',
     },
+    httpWarning: 'Using HTTP instead of HTTPS. Your credentials may be sent in plaintext.',
   },
 
   // ─── Tab Bar ───────────────────────────────────────────────────────────────
@@ -130,6 +131,11 @@ export const en = {
       `Download "${name}" for offline playback? (${n} song${n !== 1 ? 's' : ''})`,
     offlineDownloadComplete: (name: string) => `"${name}" available offline`,
     likedTrackCount: (n: number) => `${n} liked song${n !== 1 ? 's' : ''}`,
+    createPlaylistTitle: 'New playlist',
+    createPlaylistPlaceholder: 'Playlist name',
+    createPlaylistCancel: 'Cancel',
+    createPlaylistConfirm: 'Create',
+    createPlaylistError: 'Could not create playlist',
     sort: {
       recent: 'Recent',
       added: 'Recently added',
@@ -147,7 +153,6 @@ export const en = {
 
   // ─── Playlist Detail ───────────────────────────────────────────────────────
   playlistDetail: {
-    owner: 'Doodz',
     trackCount: (n: number) => `${n} song${n !== 1 ? 's' : ''}`,
     contextLabel: 'PLAYING FROM PLAYLIST',
     searchPlaceholder: 'Search this page',
@@ -256,7 +261,7 @@ export const en = {
     sortButton: 'Sort',
     newPlaylist: 'New playlist',
     savedIn: 'Saved in',
-    addedTo: (name: string) => `Added to ${name}.`,
+    addedTo: (title: string, name: string) => { const t = title.length > 15 ? title.slice(0, 15) + '…' : title; const n = name.length > 15 ? name.slice(0, 15) + '…' : name; return `"${t}" added to "${n}".`; },
     removedFrom: (name: string) => `Removed from ${name}.`,
     queuedTracks: (n: number) => `${n} tracks added to queue`,
     queueError: 'Error adding to queue',
@@ -289,9 +294,13 @@ export const en = {
   // ─── Like Retry Manager ────────────────────────────────────────────────────
   likes: {
     addedToLiked: 'Added to Liked Songs',
+    addedToLikedNamed: (title: string) => `"${title}" added to Liked Songs`,
     removedFromLiked: 'Removed from Liked Songs',
     indexError: 'Cannot add: track not indexed on server',
     unavailableTrack: 'Track not available locally',
+    sendingToServer: 'Sending to your server…',
+    stillImporting: 'Still importing, please wait…',
+    sendError: 'Failed to import track',
   },
 
   // ─── Offline Banner ────────────────────────────────────────────────────────
@@ -312,6 +321,7 @@ export const en = {
       player: 'Musonic Player',
       transitions: 'Track transitions',
       playback: 'Playback controls',
+
       display: 'Display',
       offline: 'Offline mode (Beta)',
     },

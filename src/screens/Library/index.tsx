@@ -20,6 +20,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
@@ -32,7 +33,7 @@ import Svg, {Circle, Path, Rect} from 'react-native-svg';
 import LinearGradient from 'react-native-linear-gradient';
 import {darkTheme} from '../../theme';
 import CoverArt from '../../components/CoverArt';
-import {getPlaylists, getPlaylist} from '../../api/endpoints/playlists';
+import {getPlaylists, getPlaylist, createPlaylist} from '../../api/endpoints/playlists';
 import {getStarred} from '../../api/endpoints/library';
 import {usePlayerStore} from '../../store/playerStore';
 import type {SubsonicPlaylist, SubsonicAlbum} from '../../api/types';
@@ -309,7 +310,6 @@ function SortSheet({visible, current, onSelect, onClose}: SortSheetProps) {
     {key: 'recent', label: t.library.sort.recent},
     {key: 'added', label: t.library.sort.added},
     {key: 'alpha', label: t.library.sort.alpha},
-    {key: 'custom', label: t.library.sort.custom},
   ];
   const sheet = useBottomSheet(onClose);
 
@@ -518,11 +518,10 @@ export default function LibraryScreen() {
   const t = useT();
   const {open: openDrawer} = useDrawer();
 
-  const SORT_LABELS: Record<SortMode, string> = {
+  const SORT_LABELS: Partial<Record<SortMode, string>> = {
     recent: t.library.sort.recent,
     added: t.library.sort.added,
     alpha: t.library.sort.alpha,
-    custom: t.library.sort.custom,
   };
 
   const insets = useSafeAreaInsets();
@@ -538,7 +537,6 @@ export default function LibraryScreen() {
   const sortMode: SortMode = useSettingsStore(s => s.librarySortMode);
   const setLibrarySortMode = useSettingsStore(s => s.setLibrarySortMode);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set(['liked']));
-  const [customOrder, setCustomOrder] = useState<string[]>([]);
 
   const [sortSheetVisible, setSortSheetVisible] = useState(false);
   const [optionsItem, setOptionsItem] = useState<LibraryItem | null>(null);
@@ -550,6 +548,9 @@ export default function LibraryScreen() {
   const [infoModalDescription, setInfoModalDescription] = useState('');
   const [addAllVisible, setAddAllVisible] = useState(false);
   const [addAllTrackIds, setAddAllTrackIds] = useState<string[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
   const currentPlaylistId = usePlayerStore(s => s.currentPlaylistId);
   const lastPlayedPlaylists = useSettingsStore(s => s.lastPlayedPlaylists);
@@ -700,13 +701,8 @@ export default function LibraryScreen() {
   }, [optionsItem]);
 
   const handleSortSelect = useCallback(
-    (mode: SortMode) => {
-      if (mode === 'custom' && customOrder.length === 0) {
-        setCustomOrder(allItems.map(p => p.id));
-      }
-      setLibrarySortMode(mode);
-    },
-    [customOrder.length, allItems, setLibrarySortMode],
+    (mode: SortMode) => { setLibrarySortMode(mode); },
+    [setLibrarySortMode],
   );
 
   const openInfoModal = useCallback((initialView: 'info' | 'cover') => {
@@ -804,29 +800,43 @@ export default function LibraryScreen() {
     setInfoModalVisible(false);
   }, []);
 
+  const handleCreatePlaylist = useCallback(async () => {
+    const name = newPlaylistName.trim();
+    if (!name || isCreating) return;
+    setIsCreating(true);
+    try {
+      await createPlaylist(name);
+      setShowCreateModal(false);
+      setNewPlaylistName('');
+      bumpPlaylistVersion();
+    } catch {
+      showToast(getT().library.createPlaylistError);
+    } finally {
+      setIsCreating(false);
+    }
+  }, [newPlaylistName, isCreating, bumpPlaylistVersion]);
+
   const sortedItems = useMemo<LibraryItem[]>(() => {
+    // Liked Songs is always absolute first — excluded from sort and pin logic.
+    const liked = allItems.find(p => p.id === 'liked');
+    const pool = allItems.filter(p => p.id !== 'liked');
+
     let ordered: LibraryItem[];
     if (sortMode === 'recent') {
-      ordered = [...allItems].sort((a, b) => {
+      ordered = [...pool].sort((a, b) => {
         const ta = lastPlayedPlaylists[a.id] ?? 0;
         const tb = lastPlayedPlaylists[b.id] ?? 0;
         return tb - ta;
       });
     } else if (sortMode === 'alpha') {
-      ordered = [...allItems].sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sortMode === 'custom' && customOrder.length > 0) {
-      ordered = [...allItems].sort((a, b) => {
-        const ai = customOrder.indexOf(a.id);
-        const bi = customOrder.indexOf(b.id);
-        return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
-      });
+      ordered = [...pool].sort((a, b) => a.name.localeCompare(b.name));
     } else {
-      ordered = allItems;
+      ordered = pool;
     }
     const pinned = ordered.filter(p => pinnedIds.has(p.id));
     const rest = ordered.filter(p => !pinnedIds.has(p.id));
-    return [...pinned, ...rest];
-  }, [allItems, sortMode, pinnedIds, customOrder, lastPlayedPlaylists]);
+    return liked ? [liked, ...pinned, ...rest] : [...pinned, ...rest];
+  }, [allItems, sortMode, pinnedIds, lastPlayedPlaylists]);
 
   const colWidth = Math.floor((SCREEN_W - 32) / 3);
 
@@ -846,7 +856,7 @@ export default function LibraryScreen() {
           <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
             <SearchIcon size={22} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7} onPress={() => setShowCreateModal(true)}>
             <PlusIcon size={26} />
           </TouchableOpacity>
         </View>
@@ -903,7 +913,7 @@ export default function LibraryScreen() {
                   onPress={() => setSortSheetVisible(true)}
                   activeOpacity={0.7}>
                   <SortIcon size={18} color={darkTheme.textSecondary} />
-                  <Text style={styles.sortLabel}>{SORT_LABELS[sortMode]}</Text>
+                  <Text style={styles.sortLabel}>{SORT_LABELS[sortMode] ?? SORT_LABELS.added}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.viewBtn}
@@ -1005,6 +1015,48 @@ export default function LibraryScreen() {
         trackIds={addAllTrackIds}
         onToast={showToast}
       />
+
+      {/* ── Create Playlist Modal ── */}
+      <Modal
+        visible={showCreateModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCreateModal(false)}>
+        <TouchableWithoutFeedback onPress={() => { setShowCreateModal(false); setNewPlaylistName(''); }}>
+          <View style={styles.createModalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.createModalBox}>
+                <Text style={styles.createModalTitle}>{t.library.createPlaylistTitle}</Text>
+                <TextInput
+                  style={styles.createModalInput}
+                  placeholder={t.library.createPlaylistPlaceholder}
+                  placeholderTextColor={darkTheme.textSecondary}
+                  value={newPlaylistName}
+                  onChangeText={setNewPlaylistName}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleCreatePlaylist}
+                />
+                <View style={styles.createModalActions}>
+                  <TouchableOpacity
+                    onPress={() => { setShowCreateModal(false); setNewPlaylistName(''); }}
+                    style={styles.createModalBtn}>
+                    <Text style={styles.createModalBtnCancel}>{t.library.createPlaylistCancel}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleCreatePlaylist}
+                    disabled={isCreating || !newPlaylistName.trim()}
+                    style={styles.createModalBtn}>
+                    <Text style={[styles.createModalBtnConfirm, (!newPlaylistName.trim() || isCreating) && {opacity: 0.4}]}>
+                      {t.library.createPlaylistConfirm}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
@@ -1234,5 +1286,51 @@ const styles = StyleSheet.create({
   emptyText: {
     color: darkTheme.textSecondary,
     fontSize: 14,
+  },
+  createModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  createModalBox: {
+    width: '100%',
+    backgroundColor: darkTheme.surface,
+    borderRadius: 16,
+    padding: 20,
+  },
+  createModalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: darkTheme.textPrimary,
+    marginBottom: 16,
+  },
+  createModalInput: {
+    backgroundColor: darkTheme.surfaceAlt,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: darkTheme.textPrimary,
+    fontSize: 15,
+    marginBottom: 20,
+  },
+  createModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 16,
+  },
+  createModalBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  createModalBtnCancel: {
+    fontSize: 15,
+    color: darkTheme.textSecondary,
+  },
+  createModalBtnConfirm: {
+    fontSize: 15,
+    color: darkTheme.accent,
+    fontWeight: '600',
   },
 });

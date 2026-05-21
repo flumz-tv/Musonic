@@ -4,7 +4,7 @@
  *   membership, remove from current playlist, add to queue, go to album, go to
  *   artist. Preserves last non-null track during the close animation.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
@@ -198,7 +198,7 @@ export default function SongOptionsSheet({
   const handleToggleLike = useCallback(async () => {
     if (!trackId) return;
     onClose();
-    const ok = await toggleLike(trackId);
+    const ok = await toggleLike(trackId, tr?.title, tr?.artist);
     if (ok) onToast(isLiked ? getT().likes.removedFromLiked : getT().likes.addedToLiked);
   }, [trackId, onClose, toggleLike, isLiked, onToast]);
 

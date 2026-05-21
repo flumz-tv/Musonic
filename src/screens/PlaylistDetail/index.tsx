@@ -39,7 +39,7 @@ import {
   enrichTracksWithAlbumType,
   type DeezerTrack,
 } from '../../api/deezer';
-import {loadAndPlayPlaylist, loadAndPlayTracks} from '../../services/playerActions';
+import {loadAndPlayPlaylist, loadAndPlayTracks, fisherYates} from '../../services/playerActions';
 import ShuffleIcon from '../../components/icons/ShuffleIcon';
 import TrackPlayer, {useActiveTrack, usePlaybackState, State} from 'react-native-track-player';
 import {usePlayerStore} from '../../store/playerStore';
@@ -470,12 +470,6 @@ function PlaylistHeader({
           {playlistName || '…'}
         </Text>
         <View style={styles.metaRow}>
-          <Svg width={18} height={18} viewBox="0 0 24 24">
-            <Circle cx={12} cy={8} r={4} fill="#aaa" />
-            <Path d="M4 20 C4 16 8 13 12 13 C16 13 20 16 20 20" fill="#aaa" />
-          </Svg>
-          <Text style={styles.metaSub}>{owner}</Text>
-          <Text style={styles.metaDot}>•</Text>
           <Text style={styles.metaSub}>
             {t.playlistDetail.trackCount(songCount)} · {formatDuration(totalDuration)}
           </Text>
@@ -734,6 +728,7 @@ export default function PlaylistDetailScreen() {
   const isShuffled = usePlayerStore(s => s.isShuffled);
   const shuffleMode = usePlayerStore(s => s.shuffleMode);
   const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
+  const setShuffleMode = usePlayerStore(s => s.setShuffleMode);
   const togglePlay = usePlayerStore(s => s.togglePlay);
   const isOfflineMode = useSettingsStore(s => s.isOfflineMode);
   const activeServerUsername = useSettingsStore(s => {
@@ -854,7 +849,8 @@ export default function PlaylistDetailScreen() {
           url: downloadStore.getLocalPath(String(s.id)) ?? getStreamUrl(s.id),
           artwork: getCoverArtUrl(s.coverArt || s.id, 300),
         }));
-        await loadAndPlayTracks(tracks, 0, {id: playlistId, name: playlistName});
+        const ordered = isShuffled ? fisherYates(tracks) : tracks;
+        await loadAndPlayTracks(ordered, 0, {id: playlistId, name: playlistName});
       } else {
         await loadAndPlayPlaylist(playlistId, isShuffled);
         // Magic mode: fisher-yates alone is not enough — trigger magic interleaving
@@ -871,6 +867,14 @@ export default function PlaylistDetailScreen() {
       setLoadingPlaylist(false);
     }
   }, [isOfflineMode, songs, playlistName, isThisPlaylistActive, togglePlay, playlistId, isShuffled, shuffleMode]);
+
+  const handleShuffle = useCallback(() => {
+    if (isOfflineMode && shuffleMode === 'on') {
+      setShuffleMode('off');
+    } else {
+      toggleShuffle();
+    }
+  }, [isOfflineMode, shuffleMode, toggleShuffle, setShuffleMode]);
 
   // Pair each displayed song with its original index in `songs` so we can:
   // 1. Pass the exact startIndex to RNTP (correct playback position)
@@ -1120,7 +1124,7 @@ export default function PlaylistDetailScreen() {
         query={query}
         onQueryChange={setQuery}
         onPlay={handlePlay}
-        onShuffle={toggleShuffle}
+        onShuffle={handleShuffle}
         onMorePress={() => setPlaylistOptionsVisible(true)}
         onStartEdit={handleStartEdit}
         onOpenInfo={handleOpenInfo}

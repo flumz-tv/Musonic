@@ -4,7 +4,7 @@
  *   and playback controls for a specific album. Supports shuffle, star/unstar,
  *   and animated parallax header.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license MIT
  */
 
@@ -114,6 +114,7 @@ type SongRowProps = {
 function SongRow({song, isActive, index, onPress, onMore, onAddToPlaylist, onDownloadPress}: SongRowProps) {
   const likedSongIds = usePlayerStore(s => s.likedSongIds);
   const localLikeOverrides = usePlayerStore(s => s.localLikeOverrides);
+  const pendingLikes = usePlayerStore(s => s.pendingLikes);
   const toggleLike = usePlayerStore(s => s.toggleLike);
   const savedSet = usePlaylistCacheStore(s => s.savedSet);
   const id = String(song.id);
@@ -157,8 +158,11 @@ function SongRow({song, isActive, index, onPress, onMore, onAddToPlaylist, onDow
       <View style={styles.songActions}>
         <TouchableOpacity
           hitSlop={{top: 10, bottom: 10, left: 10, right: 6}}
-          onPress={() => toggleLike(id)}>
-          <HeartIcon size={20} color={isLiked ? darkTheme.accent : '#444'} filled={isLiked} />
+          onPress={() => toggleLike(id, song.title, song.artist)}
+          disabled={pendingLikes.has(id)}>
+          {pendingLikes.has(id)
+            ? <ActivityIndicator size="small" color={darkTheme.accent} style={{width: 20, height: 20}} />
+            : <HeartIcon size={20} color={isLiked ? darkTheme.accent : '#444'} filled={isLiked} />}
         </TouchableOpacity>
         <TouchableOpacity
           hitSlop={{top: 10, bottom: 10, left: 6, right: 6}}

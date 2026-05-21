@@ -5,7 +5,7 @@
  *   based on similar artists from the user's top liked artist.
  *   Recommendations are streamed via OctoFiesta using Deezer IDs as Subsonic IDs.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 import React, {useCallback, useEffect, useRef, useState} from 'react';
@@ -153,7 +153,7 @@ export default function SearchHome() {
   }, []);
 
   const loadRecos = useCallback(async () => {
-    if (isOfflineMode) { setLoading(false); return; }
+    if (isOfflineMode) { setReco(EMPTY_RECO); setLoading(false); return; }
     setLoading(true);
     try {
       const [starred, recentAlbums] = await Promise.all([
