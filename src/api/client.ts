@@ -4,7 +4,7 @@
  *   helpers for stream/cover-art URLs. All requests are made against the active
  *   server stored in settingsStore.
  * @author DoodzProg
- * @version 1.0.0
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 import type {Server} from '../store/settingsStore';
@@ -12,8 +12,9 @@ import {useNetworkStore} from '../store/networkStore';
 
 const PERMANENT_ERROR_PATTERNS = [
   'ext-deezer',
-  'media file not found',
-  'local track not available',
+  // 'media file not found' and 'local track not available' are intentionally
+  // excluded — Navidrome returns these transiently before scan completes.
+  // LikeRetryManager handles the retry on next playback event.
 ];
 
 export class SubsonicError extends Error {
