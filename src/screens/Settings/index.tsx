@@ -291,7 +291,7 @@ export default function SettingsScreen() {
           {checkingUpdate ? (
             <ActivityIndicator size="small" color={ACCENT} />
           ) : (
-            <Text style={styles.versionText}>v1.0.1</Text>
+            <Text style={styles.versionText}>v1.0.2</Text>
           )}
         </TouchableOpacity>
 

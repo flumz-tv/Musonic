@@ -4,7 +4,7 @@
  *   Active line animates (scale + opacity). User can scroll freely; auto-recentering
  *   resumes only after the user stops scrolling. Opened from FullScreenPlayer.
  * @author DoodzProg
- * @version 1.0.1
+ * @version 1.0.2
  * @license CC-BY-NC-4.0
  */
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';

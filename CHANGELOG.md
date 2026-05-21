@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.2] - 2026-05-22
+
+### Added
+- **Create playlist from Library** — new `+` button in the Library header opens a modal to create an empty playlist directly from the app.
+- **Auto-download** — optional setting (disabled by default) that automatically downloads each played track to the device for offline playback. Enabling shows a confirmation warning about storage and server bandwidth usage.
+- **Add ext- tracks to playlist** — Deezer tracks can now be added to playlists via the add-to-playlist sheet; OctoFiesta import is triggered automatically and Navidrome is polled until the native ID is available.
+
+### Fixed
+- **deezerFetch timeout** — all Deezer API calls now use an 8 s `AbortController` timeout, preventing Magic Shuffle and Autoplay from hanging silently on slow CDN responses.
+- **Update checker version** — `LOCAL_VERSION` is now read from `package.json` at runtime instead of being hardcoded; the "check for updates" button now compares the correct installed version.
+- **Offline shuffle from PlaylistDetail** — pressing Play in PlaylistDetail while Shuffle is active now applies Fisher-Yates ordering before loading the queue; previously the tracks played in order despite the shuffle indicator being lit.
+- **Magic Shuffle blocked in offline mode** — cycling the shuffle button in PlaylistDetail while offline no longer reaches the `magic` state; it jumps directly from `on` back to `off`.
+- **Offline shuffle in toggleShuffle** — `toggleShuffle` in the player store now resolves local file paths from `downloadStore` before building the RNTP track list, so downloaded tracks are played from the local file when shuffling offline.
+- **Pending like spinner** — the heart icon in MiniPlayer and AlbumDetail now shows an `ActivityIndicator` and is disabled while a like operation is in flight, preventing double-taps.
+- **toggleLike title/artist forwarding** — `toggleLike` now receives the track title and artist from MiniPlayer, SongOptionsSheet, and AlbumDetail so the ext- import poll can match the correct song.
+- **Permanent error list** — `media file not found` and `local track not available` removed from `PERMANENT_ERROR_PATTERNS`; Navidrome returns these transiently before scan completes and `LikeRetryManager` handles retries correctly.
+- **Search discover stale data** — switching to offline mode now resets the discover reco state to empty instead of leaving stale online data visible.
+- **HTTP URL warning in ServerSetup** — an orange non-blocking warning appears under the URL field when the entered address starts with `http://`.
+- **Playlist owner removed** — the hardcoded "Doodz" author line has been removed from PlaylistDetail; only track count and total duration are shown.
+
 ## [1.0.1] - 2026-05-20
 
 ### Fixed
